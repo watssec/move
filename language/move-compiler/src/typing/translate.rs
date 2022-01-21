@@ -20,6 +20,8 @@ use crate::{
 use move_ir_types::location::*;
 use move_symbol_pool::Symbol;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use crate::mutation;
+use closure::closure;
 
 //**************************************************************************************************
 // Entry
@@ -35,9 +37,10 @@ pub fn program(
         modules: nmodules,
         scripts: nscripts,
     } = prog;
-    let modules = modules(&mut context, nmodules);
-    let scripts = scripts(&mut context, nscripts);
 
+    let modules = modules(&mut context, nmodules);
+
+    let scripts = scripts(&mut context, nscripts);
     assert!(context.constraints.is_empty());
     recursive_structs::modules(context.env, &modules);
     infinite_instantiations::modules(context.env, &modules);
@@ -61,21 +64,33 @@ fn module(
     let N::ModuleDefinition {
         attributes,
         is_source_module,
+        is_mutation_source,
         dependency_order,
         friends,
         mut structs,
         functions: nfunctions,
         constants: nconstants,
     } = mdef;
+    if !context.env.flags.mutation{
+        if mdef.is_mutation_source{
+            context.env.is_source_module.insert(context.current_module.unwrap(), true);
+        }else{
+            context.env.is_source_module.insert(context.current_module.unwrap(), false);
+        }
+    };
     structs
         .iter_mut()
         .for_each(|(_, _, s)| struct_def(context, s));
     let constants = nconstants.map(|name, c| constant(context, name, c));
     let functions = nfunctions.map(|name, f| function(context, name, f, false));
     assert!(context.constraints.is_empty());
+    // insert is_source_module
+
+
     T::ModuleDefinition {
         attributes,
         is_source_module,
+        is_mutation_source,
         dependency_order,
         friends,
         structs,
@@ -243,7 +258,7 @@ fn function(
                     diag = diag.set_code(TypeSafety::NonInvocablePublicScript);
                     context.env.add_diag(diag)
                 }
-            }
+            }    
         }
     }
     expand::function_signature(context, &mut signature);
@@ -321,7 +336,6 @@ fn function_body(
 fn constant(context: &mut Context, _name: ConstantName, nconstant: N::Constant) -> T::Constant {
     assert!(context.constraints.is_empty());
     context.reset_for_module_item();
-
     let N::Constant {
         attributes,
         loc,
@@ -790,8 +804,7 @@ fn check_non_phantom_param_usage(
         }
         Some(false) => {
             let msg = format!(
-                "The parameter '{}' is only used as an argument to phantom parameters. Consider \
-                 adding a phantom declaration here",
+                "The parameter '{}' is only used as an argument to phantom parameters. Consider adding a phantom declaration here",
                 name
             );
             context
@@ -1097,8 +1110,8 @@ fn sequence(context: &mut Context, seq: N::Sequence) -> T::Sequence {
             }
         }
     }
-
     resulting_sequence
+
 }
 
 fn sequence_type(seq: &T::Sequence) -> &Type {
@@ -1132,16 +1145,128 @@ fn exp_(context: &mut Context, initial_ne: N::Exp) -> T::Exp {
             move |s: &mut Stack| exp_loop(s, $e)
         }};
     }
+
     fn exp_loop(stack: &mut Stack, sp!(loc, cur_): N::Exp) {
+        let flag = stack.context.env.flags.mutation;
+
+        // this flag is for initialization of mutation, if it's on, add the expression location to mutation_counter
+
+        // General mutation types
+        // Int ops/ bit ops/ bool ops/compare ops
         match cur_ {
-            NE::BinopExp(nlhs, bop, nrhs) => {
+
+            NE::BinopExp(nlhs, obop, nrhs) => {
+                //Firstly add them to env for the iteration outside this
+                // bit ops  -> switch (bitor, bitand, xor)
+                if !flag&&(obop.value == BinOp_::And||
+                    obop.value == BinOp_::Or)
+                {
+                    mutation::mutation_workflow::env_insert(&mut stack.context, "BoolOperator".to_string(), loc);
+                }
+
+                //compare ops
+                if !flag&&(obop.value == BinOp_::Eq ||
+                    obop.value == BinOp_::Neq||
+                    obop.value == BinOp_::Lt ||
+                    obop.value == BinOp_::Gt ||
+                    obop.value == BinOp_::Ge ||
+                    obop.value == BinOp_::Le){
+                    stack.context.env.diag_map.insert(loc, "CompareOperator".to_string());
+                    stack.context.env.mutation_counter.insert(loc,false);
+                    stack.context.env.moduleIdent.insert(loc, stack.context.current_module.unwrap().clone());
+                }
+                // bit ops
+                if !flag&&(obop.value == BinOp_::BitOr ||
+                    obop.value == BinOp_::BitAnd||
+                    obop.value == BinOp_::Xor){
+                    stack.context.env.diag_map.insert(loc, "BitOperator".to_string());
+                    stack.context.env.mutation_counter.insert(loc,false);
+                    stack.context.env.moduleIdent.insert(loc, stack.context.current_module.unwrap().clone());
+                }
+                // there are some compare ops also
+                // Mutating bit operator
+                // int ops
+                //it not in the mutation process -> in the init process, push the loc into the mutation_counter
+                if !flag&&(obop.value ==BinOp_::Add ||
+                    obop.value == BinOp_::Sub ||
+                    obop.value == BinOp_::Mul ||
+                    obop.value == BinOp_::Div){
+                    stack.context.env.diag_map.insert(loc, "ArithmeticOperator".to_string());
+                    stack.context.env.mutation_counter.insert(loc,false);
+                    stack.context.env.moduleIdent.insert(loc, stack.context.current_module.unwrap().clone());
+                }
+
+                // not in init process & not mutated
+                // arithmetic operator
+
+                let bop = if stack.context.env.flags.current_start == loc.start
+                    && stack.context.env.flags.current_end == loc.end
+                    && stack.context.env.flags.current_file_hash == loc.file_hash.to_string() &&(
+                    obop.value ==BinOp_::Add ||
+                        obop.value == BinOp_::Sub ||
+                        obop.value == BinOp_::Mul ||
+                        obop.value == BinOp_::Div) {
+                    mutation::mutation_workflow::expression_mutation(obop)
+
+                }else{
+                    obop
+                };
+                // bit operator
+                let bop = if stack.context.env.flags.current_start == loc.start
+                    && stack.context.env.flags.current_end == loc.end
+                    && stack.context.env.flags.current_file_hash == loc.file_hash.to_string() &&(
+                    obop.value ==BinOp_::BitAnd ||
+                        obop.value == BinOp_::BitOr ||
+                        obop.value == BinOp_::Xor) {
+                    mutation::mutation_workflow::bitoperator_mutation(obop)
+
+                }else{
+                    obop
+                };
+                // bools ops
+                let bop = if stack.context.env.flags.current_start == loc.start
+                    && stack.context.env.flags.current_end == loc.end
+                    && stack.context.env.flags.current_file_hash == loc.file_hash.to_string() &&(
+                    obop.value ==BinOp_::And ||
+                        obop.value == BinOp_::Or ) {
+                    mutation::mutation_workflow::booloperator_mutation(obop)
+
+                }else{
+                    obop
+                };
+                //compare operator
+                let bop = if stack.context.env.flags.current_start == loc.start
+                    && stack.context.env.flags.current_end == loc.end
+                    && stack.context.env.flags.current_file_hash == loc.file_hash.to_string() &&(
+                    obop.value ==BinOp_::Eq ||
+                        obop.value == BinOp_::Neq ||
+                        obop.value == BinOp_::Lt ||
+                        obop.value == BinOp_::Gt ||
+                        obop.value == BinOp_::Ge ||
+                        obop.value == BinOp_::Le) {
+                    mutation::mutation_workflow::compareoperator_mutation(obop)
+
+                }else{
+                    obop
+                };
+                //
+                let mutate_list = vec![BinOp_::Add, BinOp_::Sub, BinOp_::Mul, BinOp_::Div, BinOp_::BitOr, BinOp_::BitAnd, BinOp_::Xor];
+                if stack.context.env.flags.current_start == loc.start
+                    && stack.context.env.flags.current_end == loc.end
+                    && stack.context.env.flags.current_file_hash == loc.file_hash.to_string() &&
+                    mutate_list.contains(&obop.value) {
+
+                    stack.context.env.mutated = true;
+                    stack.context.env.mutated_ident.push(stack.context.current_module.unwrap().clone());
+
+                }
                 let f_lhs = inner!(*nlhs);
                 let f_rhs = inner!(*nrhs);
-                let f_binop = move |s: &mut Stack| {
+                let f_binop = move | s: &mut Stack | {
                     let er = Box::new(s.operands.pop().unwrap());
                     let el = Box::new(s.operands.pop().unwrap());
                     use BinOp_::*;
-                    let msg = || format!("Incompatible arguments to '{}'", &bop);
+                    let msg = | | format!("Incompatible arguments to '{}'", &bop);
                     let context = &mut s.context;
                     let (ty, operand_ty) = match &bop.value {
                         Sub | Add | Mul | Mod | Div => {
@@ -1177,7 +1302,7 @@ fn exp_(context: &mut Context, initial_ne: N::Exp) -> T::Exp {
                         }
 
                         Shl | Shr => {
-                            let msg = || format!("Invalid argument to '{}'", &bop);
+                            let msg = | | format!("Invalid argument to '{}'", & bop);
                             let u8ty = Type_::u8(er.exp.loc);
                             context.add_bits_constraint(
                                 el.exp.loc,
@@ -1205,10 +1330,10 @@ fn exp_(context: &mut Context, initial_ne: N::Exp) -> T::Exp {
                         }
 
                         Eq | Neq => {
-                            let ability_msg = Some(format!(
+                            let ability_msg = Some(format! (
                                 "'{}' requires the '{}' ability as the value is consumed. Try \
                                  borrowing the values with '&' first.'",
-                                &bop,
+                                & bop,
                                 Ability_::Drop,
                             ));
                             context.add_ability_constraint(
@@ -1229,7 +1354,7 @@ fn exp_(context: &mut Context, initial_ne: N::Exp) -> T::Exp {
                         }
 
                         And | Or => {
-                            let msg = || format!("Invalid argument to '{}'", &bop);
+                            let msg = | | format! ("Invalid argument to '{}'", &bop);
                             let lloc = el.exp.loc;
                             subtype(context, lloc, msg, el.ty.clone(), Type_::bool(bop.loc));
                             let rloc = er.exp.loc;
@@ -1237,7 +1362,7 @@ fn exp_(context: &mut Context, initial_ne: N::Exp) -> T::Exp {
                             (Type_::bool(loc), Type_::bool(loc))
                         }
 
-                        Range | Implies | Iff => panic!("specification operator unexpected"),
+                        Range | Implies | Iff => panic! ("specification operator unexpected"),
                     };
                     let binop =
                         T::exp(ty, sp(loc, TE::BinopExp(el, bop, Box::new(operand_ty), er)));
@@ -1248,8 +1373,21 @@ fn exp_(context: &mut Context, initial_ne: N::Exp) -> T::Exp {
                 stack.frames.push(Box::new(f_rhs));
                 stack.frames.push(Box::new(f_lhs));
             }
-            cur_ => stack.operands.push(exp_inner(stack.context, sp(loc, cur_))),
-        }
+
+            cur_ => {stack.operands.push(exp_inner(stack.context, sp(loc, cur_)))
+            },
+        };
+
+        if !flag && !stack.context.env.mutated_ident.is_empty(){
+
+            match stack.context.env.is_source_module.get(&stack.context.env.mutated_ident[0])
+            {
+                None => (),
+                _ => stack.context.env.is_source_module_flag = *stack.context.env.is_source_module.get(&stack.context.env.mutated_ident[0]).unwrap(),
+            };
+
+        };
+
     }
 
     let mut stack = Stack {
@@ -1261,6 +1399,7 @@ fn exp_(context: &mut Context, initial_ne: N::Exp) -> T::Exp {
     while let Some(f) = stack.frames.pop() {
         f(&mut stack)
     }
+
     let e_res = stack.operands.pop().unwrap();
     assert!(stack.frames.is_empty());
     assert!(stack.operands.is_empty());
@@ -1270,23 +1409,83 @@ fn exp_(context: &mut Context, initial_ne: N::Exp) -> T::Exp {
 fn exp_inner(context: &mut Context, sp!(eloc, ne_): N::Exp) -> T::Exp {
     use N::Exp_ as NE;
     use T::UnannotatedExp_ as TE;
-    let (ty, e_) = match ne_ {
-        NE::Unit { trailing } => (sp(eloc, Type_::Unit), TE::Unit { trailing }),
-        NE::Value(sp!(vloc, Value_::InferredNum(v))) => (
-            core::make_num_tvar(context, eloc),
-            TE::Value(sp(vloc, Value_::InferredNum(v))),
-        ),
-        NE::Value(sp!(vloc, v)) => (v.type_(vloc).unwrap(), TE::Value(sp(vloc, v))),
+
+    let flag = context.env.flags.mutation;
+    // Type(Spanned<Type_>), UnannotatedExp_
+    // initialize return_tuple
+    let mut return_tuple = (sp(eloc, Type_::Unit), TE::Unit { trailing:false });
+    let mut unary_mutate_flag = false;
+    let mut unary_temp_vec = Vec::new();
+    let mut match_closure = |var_ne_, mut unary_mutate_flag_closure, mut unary_temp_vec_closure:Vec<Box<N::Exp>>| -> (Spanned<Type_>, TE) {match var_ne_ {
+        NE::Unit { trailing } => {
+            return_tuple = (sp(eloc, Type_::Unit), TE::Unit { trailing })},
+        NE::Value(sp!(vloc, Value_::InferredNum(v))) =>{
+            // the type of v is u128
+            let flag = context.env.flags.mutation;
+            let mut mutated_value = 0;
+            if !flag{
+                mutated_value = v.clone();
+                context.env.diag_map.insert(vloc, "Constant".to_string());
+                context.env.mutation_counter.insert(vloc,false);
+                context.env.moduleIdent.insert(vloc, context.current_module.unwrap().clone());
+            }
+            if flag && context.env.flags.current_start == eloc.start
+                && context.env.flags.current_end == eloc.end
+                && context.env.flags.current_file_hash == eloc.file_hash.to_string()
+            {
+                mutated_value = mutation::mutation_workflow::constant_mutation(v.clone());
+            }
+            return_tuple =
+                (
+                    core::make_num_tvar(context, vloc),
+                    TE::Value(sp(vloc, Value_::InferredNum(mutated_value))),
+                );
+        },
+        NE::Value(sp!(vloc, v)) => {
+            println!("v{:?}",&v);
+            let mut return_v = v.clone();
+            if flag && context.env.flags.current_start == vloc.start
+                && context.env.flags.current_end == vloc.end
+                && context.env.flags.current_file_hash == vloc.file_hash.to_string(){
+                match v{
+                    Value_::Bool(value)=> {
+                        return_v = Value_::Bool(!value);
+                    }
+                    Value_::U8(value) => {
+                        return_v = Value_::U8(mutation::mutation_workflow::constant_mutation(value));
+                    }
+                    Value_::U64(value) => {
+                        return_v = Value_::U64(mutation::mutation_workflow::constant_mutation(value));
+                    }
+                    Value_::U128(value) => {
+                        return_v = Value_::U128(mutation::mutation_workflow::constant_mutation(value));
+                    }
+                    Value_::Bytearray(value) => {
+
+                        for item in &value{
+                            mutation::mutation_workflow::constant_mutation(*item);
+                        }
+                        return_v = Value_::Bytearray(value);
+                    }
+                    _ => (),
+                }
+            }
+
+
+
+            return_tuple = (return_v.type_(vloc).unwrap(), TE::Value(sp(vloc, return_v)));
+        },
 
         NE::Constant(m, c) => {
+
             let ty = core::make_constant_type(context, eloc, &m, &c);
-            (ty, TE::Constant(m, c))
+            return_tuple = (ty, TE::Constant(m, c));
         }
 
         NE::Move(var) => {
             let ty = context.get_local(eloc, "move", &var);
             let from_user = true;
-            (ty, TE::Move { var, from_user })
+            return_tuple = (ty, TE::Move { var, from_user });
         }
         NE::Copy(var) => {
             let ty = context.get_local(eloc, "copy", &var);
@@ -1300,27 +1499,46 @@ fn exp_inner(context: &mut Context, sp!(eloc, ne_): N::Exp) -> T::Exp {
                 Ability_::Copy,
             );
             let from_user = true;
-            (ty, TE::Copy { var, from_user })
+            return_tuple = (ty, TE::Copy { var, from_user });
         }
         NE::Use(var) => {
             let ty = context.get_local(eloc, "variable usage", &var);
-            (ty, TE::Use(var))
+            return_tuple = (ty, TE::Use(var));
         }
 
         NE::ModuleCall(m, f, ty_args_opt, sp!(argloc, nargs_)) => {
             let args = exp_vec(context, nargs_);
-            module_call(context, eloc, m, f, ty_args_opt, argloc, args)
+            return_tuple = module_call(context, eloc, m, f, ty_args_opt, argloc, args);
         }
         NE::Builtin(b, sp!(argloc, nargs_)) => {
+
+            // if mutation mode is on, add something after the first push_back
+
             let args = exp_vec(context, nargs_);
-            builtin_call(context, eloc, b, argloc, args)
+            return_tuple = builtin_call(context, eloc, b, argloc, args);
         }
         NE::Vector(vec_loc, ty_opt, sp!(argloc, nargs_)) => {
             let args_ = exp_vec(context, nargs_);
-            vector_pack(context, eloc, vec_loc, ty_opt, argloc, args_)
+            return_tuple = vector_pack(context, eloc, vec_loc, ty_opt, argloc, args_);
         }
 
-        NE::IfElse(nb, nt, nf) => {
+        NE::IfElse(nb, ont, onf) => {
+
+            // if not on mutation mode, add the information in context.env for the iteration
+            if !flag && context.env.flags.current_start == eloc.start
+                && context.env.flags.current_end == eloc.end
+                && context.env.flags.current_file_hash == eloc.file_hash.to_string()
+            {
+                context.env.mutation_counter.insert(eloc, false);
+                context.env.moduleIdent.insert(eloc, context.current_module.unwrap().clone());
+                context.env.diag_map.insert(eloc, "IfElse".to_string());
+            }
+
+            // if on mutation mode, then switch the if&else branch
+
+            let nt = if flag{onf.clone()}else{ont.clone()};
+            let nf = if flag{ont.clone()}else{onf.clone()};
+
             let eb = exp(context, nb);
             let bloc = eb.exp.loc;
             subtype(
@@ -1339,7 +1557,7 @@ fn exp_inner(context: &mut Context, sp!(eloc, ne_): N::Exp) -> T::Exp {
                 et.ty.clone(),
                 ef.ty.clone(),
             );
-            (ty, TE::IfElse(eb, et, ef))
+            return_tuple = (ty, TE::IfElse(eb, et, ef));
         }
         NE::While(nb, nloop) => {
             let eb = exp(context, nb);
@@ -1352,30 +1570,30 @@ fn exp_inner(context: &mut Context, sp!(eloc, ne_): N::Exp) -> T::Exp {
                 Type_::bool(bloc),
             );
             let (_has_break, ty, body) = loop_body(context, eloc, false, nloop);
-            (sp(eloc, ty.value), TE::While(eb, body))
+            return_tuple = (sp(eloc, ty.value), TE::While(eb, body));
         }
         NE::Loop(nloop) => {
             let (has_break, ty, body) = loop_body(context, eloc, true, nloop);
             let eloop = TE::Loop { has_break, body };
-            (sp(eloc, ty.value), eloop)
+            return_tuple = (sp(eloc, ty.value), eloop);
         }
         NE::Block(nseq) => {
             let seq = sequence(context, nseq);
-            (sequence_type(&seq).clone(), TE::Block(seq))
+            return_tuple = (sequence_type(&seq).clone(), TE::Block(seq));
         }
 
         NE::Assign(na, nr) => {
             let er = exp(context, nr);
             let a = assign_list(context, na, er.ty.clone());
             let lvalue_ty = lvalues_expected_types(context, &a);
-            (sp(eloc, Type_::Unit), TE::Assign(a, lvalue_ty, er))
+            return_tuple = (sp(eloc, Type_::Unit), TE::Assign(a, lvalue_ty, er));
         }
 
         NE::Mutate(nl, nr) => {
             let el = exp(context, nl);
             let er = exp(context, nr);
             check_mutation(context, el.exp.loc, el.ty.clone(), &er.ty);
-            (sp(eloc, Type_::Unit), TE::Mutate(el, er))
+            return_tuple = (sp(eloc, Type_::Unit), TE::Mutate(el, er));
         }
 
         NE::FieldMutate(ndotted, nr) => {
@@ -1384,22 +1602,29 @@ fn exp_inner(context: &mut Context, sp!(eloc, ne_): N::Exp) -> T::Exp {
             let (edotted, _) = exp_dotted(context, "mutation", ndotted);
             let eborrow = exp_dotted_to_borrow(context, lhsloc, true, edotted);
             check_mutation(context, eborrow.exp.loc, eborrow.ty.clone(), &er.ty);
-            (sp(eloc, Type_::Unit), TE::Mutate(Box::new(eborrow), er))
+            return_tuple = (sp(eloc, Type_::Unit), TE::Mutate(Box::new(eborrow), er));
         }
 
         NE::Return(nret) => {
             let eret = exp(context, nret);
             let ret_ty = context.return_type.clone().unwrap();
             subtype(context, eloc, || "Invalid return", eret.ty.clone(), ret_ty);
-            (sp(eloc, Type_::Anything), TE::Return(eret))
+            return_tuple = (sp(eloc, Type_::Anything), TE::Return(eret));
         }
         NE::Abort(ncode) => {
             let ecode = exp(context, ncode);
             let code_ty = Type_::u64(eloc);
             subtype(context, eloc, || "Invalid abort", ecode.ty.clone(), code_ty);
-            (sp(eloc, Type_::Anything), TE::Abort(ecode))
+            return_tuple = (sp(eloc, Type_::Anything), TE::Abort(ecode));
         }
         NE::Break => {
+            if !flag &&context.env.flags.current_start == eloc.start
+                && context.env.flags.current_end == eloc.end
+                && context.env.flags.current_file_hash == eloc.file_hash.to_string(){
+                context.env.mutation_counter.insert(eloc,false);
+                context.env.moduleIdent.insert(eloc, context.current_module.unwrap().clone());
+                context.env.diag_map.insert(eloc, "BreakContinue".to_string());
+            }
             if !context.in_loop() {
                 let msg = "Invalid usage of 'break'. 'break' can only be used inside a loop body";
                 context
@@ -1415,9 +1640,19 @@ fn exp_inner(context: &mut Context, sp!(eloc, ne_): N::Exp) -> T::Exp {
                 }
             };
             context.set_break_type(break_ty);
-            (sp(eloc, Type_::Anything), TE::Break)
+            if flag{
+                return_tuple = (sp(eloc, Type_::Anything), TE::Continue);
+            }else{
+                return_tuple = (sp(eloc, Type_::Anything), TE::Break);
+            }
+
         }
         NE::Continue => {
+            if !flag {
+                context.env.mutation_counter.insert(eloc,false);
+                context.env.moduleIdent.insert(eloc, context.current_module.unwrap().clone());
+                context.env.diag_map.insert(eloc, "BreakContinue".to_string());
+            }
             if !context.in_loop() {
                 let msg =
                     "Invalid usage of 'continue'. 'continue' can only be used inside a loop body";
@@ -1425,7 +1660,12 @@ fn exp_inner(context: &mut Context, sp!(eloc, ne_): N::Exp) -> T::Exp {
                     .env
                     .add_diag(diag!(TypeSafety::InvalidLoopControl, (eloc, msg)))
             }
-            (sp(eloc, Type_::Anything), TE::Continue)
+            if flag{
+                return_tuple = (sp(eloc, Type_::Anything), TE::Break);
+            }else{
+                return_tuple = (sp(eloc, Type_::Anything), TE::Continue);
+            }
+
         }
 
         NE::Dereference(nref) => {
@@ -1448,12 +1688,26 @@ fn exp_inner(context: &mut Context, sp!(eloc, ne_): N::Exp) -> T::Exp {
                 inner.clone(),
                 Ability_::Copy,
             );
-            (inner, TE::Dereference(eref))
+            return_tuple = (inner, TE::Dereference(eref));
         }
+
         NE::UnaryExp(uop, nr) => {
+            if !flag && context.env.flags.current_start == eloc.start
+                && context.env.flags.current_end == eloc.end
+                && context.env.flags.current_file_hash == eloc.file_hash.to_string()
+            {
+                context.env.mutation_counter.insert(eloc, false);
+                context.env.moduleIdent.insert(eloc, context.current_module.unwrap().clone());
+                context.env.diag_map.insert(eloc, "Unary".to_string());
+            }
+
+            // => not xx
             use UnaryOp_::*;
+
             let msg = || format!("Invalid argument to '{}'", &uop);
+            unary_temp_vec_closure.push(nr.clone());
             let er = exp(context, nr);
+
             let ty = match &uop.value {
                 Not => {
                     let rloc = er.exp.loc;
@@ -1461,7 +1715,14 @@ fn exp_inner(context: &mut Context, sp!(eloc, ne_): N::Exp) -> T::Exp {
                     Type_::bool(eloc)
                 }
             };
-            (ty, TE::UnaryExp(uop, er))
+            if flag && context.env.flags.current_start == eloc.start
+                && context.env.flags.current_end == eloc.end
+                && context.env.flags.current_file_hash == eloc.file_hash.to_string()
+            {
+                //if mutation is on, return er, else return nr
+                unary_mutate_flag_closure = true;
+            }
+            return_tuple = (ty, TE::UnaryExp(uop, er));
         }
 
         NE::ExpList(nes) => {
@@ -1485,7 +1746,7 @@ fn exp_inner(context: &mut Context, sp!(eloc, ne_): N::Exp) -> T::Exp {
             }
             let ty = Type_::multiple(eloc, tvars);
             let items = es.into_iter().map(T::single_item).collect();
-            (ty, TE::ExpList(items))
+            return_tuple = (ty, TE::ExpList(items));
         }
         NE::Pack(m, n, ty_args_opt, nfields) => {
             let (bt, targs) = core::make_struct_type(context, eloc, &m, &n, ty_args_opt);
@@ -1513,32 +1774,61 @@ fn exp_inner(context: &mut Context, sp!(eloc, ne_): N::Exp) -> T::Exp {
                     .env
                     .add_diag(diag!(TypeSafety::Visibility, (eloc, msg)));
             }
-            (bt, TE::Pack(m, n, targs, tfields))
+            return_tuple = (bt, TE::Pack(m, n, targs, tfields));
         }
 
         NE::Borrow(mut_, sp!(_, N::ExpDotted_::Exp(ner))) => {
+            let flag = context.env.flags.mutation;
             let er = exp_(context, *ner);
+            if !flag {
+                context.env.mutation_counter.insert(eloc, false);
+                context.env.moduleIdent.insert(eloc, context.current_module.unwrap().clone());
+                context.env.diag_map.insert(eloc, "Borrow".to_string());
+                // if mutation_point is not empty
+            }
+
+            // let mut replace_ner = context.env.borrow_mutation[0].1.clone();
+            // let mut replace_mut = context.env.borrow_mutation[0].0.clone();
+            //let replace_er = exp_(context, *replace_ner);
+
+
             context.add_base_type_constraint(eloc, "Invalid borrow", er.ty.clone());
             let ty = sp(eloc, Type_::Ref(mut_, Box::new(er.ty.clone())));
             let eborrow = match er.exp {
-                sp!(_, TE::Use(v)) => TE::BorrowLocal(mut_, v),
-                erexp => TE::TempBorrow(mut_, Box::new(T::exp(er.ty, erexp))),
+                sp!(_, TE::Use(v)) => {
+                    //let mut replace_return = TE::BorrowLocal(mut_, v);
+                    //let replace = match replace_er.exp{
+                    //sp!(_, TE::Use(v_replace)) => replace_return  = TE::BorrowLocal(replace_mut, v_replace),
+                    //_ => (),
+                    //};
+                    if flag{
+                        TE::BorrowLocal(mut_,v)
+                    }else{
+                        //if mutation mode is on, change v to another random one in the array
+                        TE::BorrowLocal(mut_,v)}
+                },
+                erexp => {
+                    // this is used to borrow variables from other modules
+                    TE::TempBorrow(mut_, Box::new(T::exp(er.ty, erexp)))},
             };
-            (ty, eborrow)
+
+            return_tuple = (ty, eborrow);
         }
 
         NE::Borrow(mut_, ndotted) => {
             let (edotted, _) = exp_dotted(context, "borrow", ndotted);
             let eborrow = exp_dotted_to_borrow(context, eloc, mut_, edotted);
-            (eborrow.ty, eborrow.exp.value)
+            return_tuple = (eborrow.ty, eborrow.exp.value);
+
         }
 
         NE::DerefBorrow(ndotted) => {
-            assert!(!matches!(ndotted, sp!(_, N::ExpDotted_::Exp(_))));
 
+            assert!(!matches!(ndotted, sp!(_, N::ExpDotted_::Exp(_))));
             let (edotted, inner_ty) = exp_dotted(context, "dot access", ndotted);
             let ederefborrow = exp_dotted_to_owned_value(context, eloc, edotted, inner_ty);
-            (ederefborrow.ty, ederefborrow.exp.value)
+
+            return_tuple = (ederefborrow.ty, ederefborrow.exp.value);
         }
 
         NE::Cast(nl, ty) => {
@@ -1547,7 +1837,7 @@ fn exp_inner(context: &mut Context, sp!(eloc, ne_): N::Exp) -> T::Exp {
             let rhs = core::instantiate(context, ty);
             context.add_numeric_constraint(el.exp.loc, "as", el.ty.clone());
             context.add_numeric_constraint(tyloc, "as", rhs.clone());
-            (rhs.clone(), TE::Cast(el, Box::new(rhs)))
+            return_tuple = (rhs.clone(), TE::Cast(el, Box::new(rhs)));
         }
 
         NE::Annotate(nl, ty_annot) => {
@@ -1561,7 +1851,7 @@ fn exp_inner(context: &mut Context, sp!(eloc, ne_): N::Exp) -> T::Exp {
                 el.ty.clone(),
                 rhs.clone(),
             );
-            (rhs.clone(), TE::Annotate(el, Box::new(rhs)))
+            return_tuple = (rhs.clone(), TE::Annotate(el, Box::new(rhs)));
         }
         NE::Spec(u, used_locals) => {
             let used_local_types = used_locals
@@ -1571,16 +1861,29 @@ fn exp_inner(context: &mut Context, sp!(eloc, ne_): N::Exp) -> T::Exp {
                     Some((v, ty))
                 })
                 .collect();
-            (sp(eloc, Type_::Unit), TE::Spec(u, used_local_types))
+            return_tuple = (sp(eloc, Type_::Unit), TE::Spec(u, used_local_types));
         }
         NE::UnresolvedError => {
             assert!(context.env.has_diags());
-            (context.error_type(eloc), TE::UnresolvedError)
+            return_tuple = (context.error_type(eloc), TE::UnresolvedError);
         }
-
         NE::BinopExp(..) => unreachable!(),
     };
-    T::exp(ty, sp(eloc, e_))
+        return_tuple.clone()};
+
+    let (ty, e_) = match_closure(ne_, unary_mutate_flag,unary_temp_vec.clone());
+    let mut unary_mutated_ty = ty.clone();
+    let mut unary_mutated_e_ = e_.clone();
+    // if this is a unary mutation, unwrap to get the core exp and start another round of matching
+    //
+    if unary_mutate_flag{
+        let sp!(unary_loc,unary_temp) = *unary_temp_vec.pop().unwrap();
+        let mut unary_temp_vec_inside = Vec::new();
+        let mut unary_mutate_flag_inside = false;
+
+        let(unary_mutated_ty, unary_mutated_e_) = match_closure(unary_temp,unary_mutate_flag_inside, unary_temp_vec_inside);
+    }
+    T::exp(ty.clone(), sp(eloc, e_.clone()))
 }
 
 fn loop_body(
