@@ -3,8 +3,8 @@
 
 use anyhow::{anyhow, Result};
 use std::collections::BTreeMap;
-use move_lang::shared::NumericalAddress;
-use bytecode::{
+use move_compiler::shared::NumericalAddress;
+use move_stackless_bytecode::{
     function_target_pipeline::FunctionTargetsHolder, options::ProverOptions,
     pipeline_factory::default_pipeline_with_options,
 };
@@ -15,7 +15,7 @@ use move_model::{
 };
 use move_prover::{cli::Options as CliOptions, generate_boogie, verify_boogie};
 use crate::options::MutationOptions;
-use move_lang::Flags;
+use move_compiler::Flags;
 use move_ir_types::location::*;
 
 // pub(crate) means the function is private within the crate

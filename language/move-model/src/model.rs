@@ -17,7 +17,7 @@
 use std::{
     any::{Any, TypeId},
     cell::RefCell,
-    collections::{BTreeMap, BTreeSet, VecDeque},
+    collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
     ffi::OsStr,
     fmt::{self, Formatter},
     rc::Rc,
@@ -68,7 +68,9 @@ use crate::{
     symbol::{Symbol, SymbolPool},
     ty::{PrimitiveType, Type, TypeDisplayContext, TypeUnificationAdapter, Variance},
 };
-
+use move_ir_types::location;
+use move_symbol_pool::Symbol as MoveStringSymbol;
+use move_compiler::expansion::ast::ModuleIdent;
 // import and re-expose symbols
 use crate::ast::Attribute;
 use move_binary_format::file_format::CodeOffset;
@@ -474,7 +476,7 @@ pub struct GlobalEnv {
     internal_loc: Loc,
     /// Accumulated diagnosis. In a RefCell so we can add to it without needing a mutable GlobalEnv.
     /// The boolean indicates whether the diag was reported.
-    diags: RefCell<Vec<(Diagnostic<FileId>, bool)>>,
+    pub diags: RefCell<Vec<(Diagnostic<FileId>, bool)>>,
     /// Pool of symbols -- internalized strings.
     symbol_pool: SymbolPool,
     /// A counter for allocating node ids.
@@ -495,6 +497,13 @@ pub struct GlobalEnv {
     pub used_spec_funs: BTreeSet<QualifiedId<SpecFunId>>,
     /// A type-indexed container for storing extension data in the environment.
     extensions: RefCell<BTreeMap<TypeId, Box<dyn Any>>>,
+    pub mutation_counter: BTreeMap<location::Loc, bool>,
+    pub files: HashMap<FileHash, (MoveStringSymbol, String)>,
+    pub mutated: bool,
+    pub is_source_module: BTreeMap<ModuleIdent,bool>,
+    pub is_source_module_flag: bool,
+    pub module_ident: BTreeMap<location::Loc,ModuleIdent>,
+    pub diags_map: BTreeMap<location::Loc, String>,
 }
 
 /// Struct a helper type for implementing fmt::Display depending on GlobalEnv
@@ -545,6 +554,13 @@ impl GlobalEnv {
             global_invariants_for_memory: Default::default(),
             used_spec_funs: BTreeSet::new(),
             extensions: Default::default(),
+            mutation_counter: BTreeMap::new(),
+            module_ident: BTreeMap::new(),
+            files: HashMap::new(),
+            mutated: false,
+            is_source_module: BTreeMap::new(),
+            is_source_module_flag: false,
+            diags_map: BTreeMap::new(),
         }
     }
 

@@ -164,9 +164,11 @@ pub fn run_model_builder_with_options_and_compilation_flags(
     // Extract the module/script closure
     let mut visited_addresses = BTreeSet::new();
     let mut visited_modules = BTreeSet::new();
+    let mut source_file_vec = Vec::new();
     for (_, mident, mdef) in &expansion_ast.modules {
         let src_file_hash = mdef.loc.file_hash();
         if !dep_files.contains(&src_file_hash) {
+            source_file_vec.push(mident.clone());
             collect_related_modules_recursive(
                 mident,
                 &expansion_ast.modules,
@@ -202,9 +204,9 @@ pub fn run_model_builder_with_options_and_compilation_flags(
                 .then(|| (n.into(), val))
         })
         .collect();
-
+    let mut modules_ref = UniqueMap::new();
     // Step 3: selective compilation.
-    let expansion_ast = {
+    let mut expansion_ast = {
         let E::Program { modules, scripts } = expansion_ast;
         let modules = modules.filter_map(|mident, mut mdef| {
             visited_modules.contains(&mident.value).then(|| {
@@ -212,7 +214,16 @@ pub fn run_model_builder_with_options_and_compilation_flags(
                 mdef
             })
         });
+        modules_ref = modules.clone();
         E::Program { modules, scripts }
+    };
+    for (_, ident, mdef) in &mut expansion_ast.modules{
+        let ident_clone = ident.clone();
+        if source_file_vec.contains(&ident_clone){
+            mdef.is_mutation_source = true;
+        }else{
+            mdef.is_mutation_source = false;
+        }
     };
     // Run the compiler fully to the compiled units
     let units = match compiler
@@ -224,6 +235,24 @@ pub fn run_model_builder_with_options_and_compilation_flags(
             return Ok(env);
         }
         Ok(compiler) => {
+            // from the mutation_counter into mutation_result in global env
+            for (loc,result) in &compiler.compilation_env.mutation_counter{
+                env.mutation_counter.insert(*loc,*result);
+            }
+            for (loc, ident) in &compiler.compilation_env.moduleIdent{
+                env.module_ident.insert(*loc, *ident);
+            }
+            for(loc, diag_str) in &compiler.compilation_env.diag_map{
+                env.diags_map.insert(*loc, diag_str.to_string());
+            }
+            // pass the mutated flag into global env
+            env.mutated  = compiler.compilation_env.mutated;
+            // pass the is_source_module flag into global env
+            for(loc,result) in &compiler.compilation_env.is_source_module{
+                env.is_source_module.insert(*loc, *result);
+            }
+            env.is_source_module_flag = compiler.compilation_env.is_source_module_flag;
+            // tag whether mutated
             let (units, warnings) = compiler.into_compiled_units();
             if !warnings.is_empty() {
                 // NOTE: these diagnostics are just warnings. it should be feasible to continue the
@@ -243,7 +272,7 @@ pub fn run_model_builder_with_options_and_compilation_flags(
 
     // Now that it is known that the program has no errors, run the spec checker on verified units
     // plus expanded AST. This will populate the environment including any errors.
-    run_spec_checker(&mut env, addresses, units, expansion_ast);
+    run_spec_checker(&mut env, addresses, units,expansion_ast);
     Ok(env)
 }
 
@@ -537,6 +566,7 @@ fn run_spec_checker(
                         immediate_neighbors,
                         used_addresses,
                         is_source_module: true,
+                        is_mutation_source: true,
                         friends: UniqueMap::new(),
                         structs: UniqueMap::new(),
                         constants,

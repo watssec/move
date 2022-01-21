@@ -8,9 +8,9 @@ edition = "2021"
 [dependencies]
 #diem dependencies
 move-model = { path = "../../../move-model" }
-bytecode = {path = "../../bytecode"}
+move-stackless-bytecode = {path = "../../bytecode"}
 move-prover = { path = "../.." }
-move-lang = { path = "../../../move-lang" }
+move-compiler = { path = "../../../move-compiler" }
 move-ir-types = {path = "../../../move-ir/types"}
 
 # external dependencies

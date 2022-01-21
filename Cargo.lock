@@ -410,6 +410,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "closure"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d6173fd61b610d15a7566dd7b7620775627441c4ab9dac8906e17cb93a24b782"
+
+[[package]]
 name = "cloudabi"
 version = "0.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1811,6 +1817,7 @@ version = "0.0.1"
 dependencies = [
  "anyhow",
  "bcs",
+ "closure",
  "codespan-reporting",
  "datatest-stable",
  "difference",
@@ -1825,8 +1832,11 @@ dependencies = [
  "move-ir-types",
  "move-stdlib",
  "move-symbol-pool",
+ "num 0.4.0",
+ "num-integer",
  "once_cell",
  "petgraph 0.5.1",
+ "rand 0.8.4",
  "regex",
  "structopt 0.3.25",
  "tempfile",
@@ -2419,6 +2429,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "mutation"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "log",
+ "move-compiler",
+ "move-ir-types",
+ "move-model",
+ "move-prover",
+ "move-stackless-bytecode",
+ "num 0.4.0",
+ "pbr",
+ "rand 0.8.4",
+ "rand_chacha 0.3.1",
+ "structopt 0.3.25",
+]
+
+[[package]]
 name = "named-lock"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2826,6 +2854,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "pbr"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ff5751d87f7c00ae6403eb1fcbba229b9c76c9a30de8c1cf87182177b168cea2"
+dependencies = [
+ "crossbeam-channel",
+ "libc",
+ "time",
+ "winapi",
+]
+
+[[package]]
 name = "percent-encoding"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3062,7 +3102,7 @@ dependencies = [
  "num-traits 0.2.14",
  "quick-error 2.0.0",
  "rand 0.8.4",
- "rand_chacha 0.3.0",
+ "rand_chacha 0.3.1",
  "rand_xorshift",
  "regex-syntax",
  "rusty-fork",
@@ -3087,32 +3127,6 @@ dependencies = [
  "anyhow",
  "chrono",
  "clap",
- "codespan-reporting",
- "datatest-stable",
- "hex",
- "itertools 0.10.1",
- "log",
- "move-model",
- "move-prover",
- "move-prover-test-utils",
- "move-stackless-bytecode",
- "num 0.4.0",
- "plotters",
- "serde 1.0.130",
- "serde_json",
- "simplelog",
- "workspace-hack",
- "z3tracer",
-]
-
-[[package]]
-name = "prover-mutation"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "clap",
- "codespan",
  "codespan-reporting",
  "datatest-stable",
  "hex",
@@ -3216,7 +3230,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2e7573632e6454cf6b99d7aac4ccca54be06da05aca2ef7423d22d27d4d4bcd8"
 dependencies = [
  "libc",
- "rand_chacha 0.3.0",
+ "rand_chacha 0.3.1",
  "rand_core 0.6.2",
  "rand_hc 0.3.0",
 ]
@@ -3233,9 +3247,9 @@ dependencies = [
 
 [[package]]
 name = "rand_chacha"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e12735cf05c9e10bf21534da50a147b924d555dc7a547c42e6bb2d5b6017ae0d"
+checksum = "e6c10a63a0fa32252be49d21e7709d4d4baf8d231c2dbce1eaa8141b9b127d88"
 dependencies = [
  "ppv-lite86",
  "rand_core 0.6.2",

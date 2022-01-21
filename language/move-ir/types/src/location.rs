@@ -26,11 +26,11 @@ pub type ByteIndex = u32;
 /// byte vector
 pub struct Loc {
     /// The file the location points to
-    file_hash: FileHash,
+    pub file_hash: FileHash,
     /// The start byte index into file
-    start: ByteIndex,
+    pub start: ByteIndex,
     /// The end byte index into file
-    end: ByteIndex,
+    pub end: ByteIndex,
 }
 
 impl Loc {

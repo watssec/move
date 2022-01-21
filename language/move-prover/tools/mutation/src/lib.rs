@@ -9,7 +9,7 @@ mod workflow;
 use std::io::prelude::*;
 pub use options::MutationOptions;
 use std::path::Path;
-use move_lang::{diag, diagnostics::{self, codes,Diagnostics}};
+use move_compiler::{diag, diagnostics::{self, codes,Diagnostics}};
 use std::time::Instant;
 use rand::{Rng, SeedableRng};
 use rand::prelude::*;
