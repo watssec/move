@@ -105,6 +105,7 @@ pub struct ModuleDefinition {
     pub attributes: Attributes,
     pub loc: Loc,
     pub is_source_module: bool,
+    pub is_mutation_source: bool,
     /// `dependency_order` is the topological order/rank in the dependency graph.
     /// `dependency_order` is initialized at `0` and set in the uses pass
     pub dependency_order: usize,
@@ -856,6 +857,7 @@ impl AstDebug for ModuleDefinition {
             attributes,
             loc: _loc,
             is_source_module,
+            is_mutation_source,
             dependency_order,
             immediate_neighbors,
             used_addresses,

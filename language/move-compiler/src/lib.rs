@@ -20,6 +20,7 @@ pub mod shared;
 mod to_bytecode;
 pub mod typing;
 pub mod unit_test;
+pub mod mutation;
 
 pub use command_line::{
     compiler::{

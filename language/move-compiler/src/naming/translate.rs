@@ -362,6 +362,7 @@ fn module(
         attributes,
         loc: _loc,
         is_source_module,
+        is_mutation_source,
         dependency_order,
         immediate_neighbors: _,
         used_addresses: _,
@@ -389,6 +390,7 @@ fn module(
     N::ModuleDefinition {
         attributes,
         is_source_module,
+        is_mutation_source,
         dependency_order,
         friends,
         structs,
@@ -947,15 +949,17 @@ fn exp_(context: &mut Context, e: E::Exp) -> N::Exp {
         }
 
         EE::Borrow(mut_, inner) => match *inner {
-            sp!(_, EE::ExpDotted(edot)) => match dotted(context, *edot) {
+            sp!(_, EE::ExpDotted(edot)) => {match dotted(context, *edot) {
+
                 None => {
                     assert!(context.env.has_diags());
                     NE::UnresolvedError
                 }
                 Some(d) => NE::Borrow(mut_, d),
-            },
+            }},
             e => {
                 let ne = exp(context, e);
+                context.env.borrow_mutation.push((mut_, ne.clone()));
                 NE::Borrow(mut_, sp(ne.loc, N::ExpDotted_::Exp(ne)))
             }
         },
@@ -1021,6 +1025,7 @@ fn exp_(context: &mut Context, e: E::Exp) -> N::Exp {
             }
         }
         EE::Vector(vec_loc, tys_opt, rhs) => {
+            println!("in vector");
             let ty_args = tys_opt.map(|tys| types(context, tys));
             let nes = call_args(context, rhs);
             let ty_opt = check_builtin_ty_args_impl(

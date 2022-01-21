@@ -47,6 +47,7 @@ pub struct Script {
 pub struct ModuleDefinition {
     pub attributes: Attributes,
     pub is_source_module: bool,
+    pub is_mutation_source: bool,
     /// `dependency_order` is the topological order/rank in the dependency graph.
     pub dependency_order: usize,
     pub friends: UniqueMap<ModuleIdent, Friend>,
@@ -218,6 +219,7 @@ impl AstDebug for ModuleDefinition {
         let ModuleDefinition {
             attributes,
             is_source_module,
+            is_mutation_source,
             dependency_order,
             friends,
             structs,

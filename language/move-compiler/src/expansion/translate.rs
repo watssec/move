@@ -389,6 +389,7 @@ fn module_(
     let def = E::ModuleDefinition {
         attributes,
         loc,
+        is_mutation_source: false,
         is_source_module: context.is_source_definition,
         dependency_order: 0,
         immediate_neighbors: UniqueMap::new(),

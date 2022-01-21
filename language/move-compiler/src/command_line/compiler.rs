@@ -39,9 +39,9 @@ pub struct Compiler<'a, 'b> {
     named_address_mapping: BTreeMap<Symbol, NumericalAddress>,
     flags: Flags,
 }
-
+#[derive(Debug)]
 pub struct SteppedCompiler<'a, const P: Pass> {
-    compilation_env: CompilationEnv,
+    pub compilation_env: CompilationEnv,
     pre_compiled_lib: Option<&'a FullyCompiledProgram>,
     program: Option<PassResult>,
 }
@@ -67,7 +67,7 @@ enum PassResult {
     Compilation(Vec<AnnotatedCompiledUnit>, /* warnings */ Diagnostics),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FullyCompiledProgram {
     // TODO don't store this...
     pub files: FilesSourceText,
@@ -316,9 +316,7 @@ macro_rules! ast_stepped_compilers {
                     Ok(())
                 }
 
-                pub fn build(
-                    self
-                ) -> Result<(Vec<AnnotatedCompiledUnit>, Diagnostics), Diagnostics> {
+                pub fn build(self) -> Result<(Vec<AnnotatedCompiledUnit>, Diagnostics), Diagnostics> {
                     let units = self.run::<PASS_COMPILATION>()?.into_compiled_units();
                     Ok(units)
                 }
@@ -389,7 +387,6 @@ pub fn construct_pre_compiled_lib(
         Err(errors) => return Ok(Err((files, errors))),
         Ok(res) => res,
     };
-
     let (empty_compiler, ast) = stepped.into_ast();
     let mut compilation_env = empty_compiler.compilation_env;
     let start = PassResult::Parser(ast);
@@ -486,9 +483,9 @@ macro_rules! file_path {
 /// Fails if the bytecode verifier errors
 pub fn sanity_check_compiled_units(
     files: FilesSourceText,
-    compiled_units: &[AnnotatedCompiledUnit],
+    compiled_units: Vec<AnnotatedCompiledUnit>,
 ) {
-    let ice_errors = compiled_unit::verify_units(compiled_units);
+    let (_, ice_errors) = compiled_unit::verify_units(compiled_units);
     if !ice_errors.is_empty() {
         report_diagnostics(&files, ice_errors)
     }
@@ -522,7 +519,7 @@ pub fn output_compiled_units(
         }};
     }
 
-    let ice_errors = compiled_unit::verify_units(&compiled_units);
+    let (compiled_units, ice_errors) = compiled_unit::verify_units(compiled_units);
     let (modules, scripts): (Vec<_>, Vec<_>) = compiled_units
         .into_iter()
         .partition(|u| matches!(u, AnnotatedCompiledUnit::Module(_)));

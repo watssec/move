@@ -187,6 +187,7 @@ fn module(
     let H::ModuleDefinition {
         attributes,
         is_source_module,
+        is_mutation_source,
         dependency_order,
         friends,
         structs,
@@ -201,6 +202,7 @@ fn module(
         G::ModuleDefinition {
             attributes,
             is_source_module,
+            is_mutation_source,
             dependency_order,
             friends,
             structs,

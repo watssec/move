@@ -1,0 +1,23 @@
+[package]
+name = "mutation"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+#diem dependencies
+move-model = { path = "../../../move-model" }
+bytecode = {path = "../../bytecode"}
+move-prover = { path = "../.." }
+move-lang = { path = "../../../move-lang" }
+move-ir-types = {path = "../../../move-ir/types"}
+
+# external dependencies
+num = "0.4"
+structopt = "0.3.21"
+anyhow = "1.0.38"
+log = { version = "0.4.14", features = ["serde"] }
+pbr = "1.0.3"
+rand = "0.8.4"
+rand_chacha = "0.3.1"

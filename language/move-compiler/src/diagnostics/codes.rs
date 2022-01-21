@@ -230,6 +230,18 @@ codes!(
         BytecodeGeneration: { msg: "BYTECODE GENERATION FAILED", severity: Bug },
         BytecodeVerification: { msg: "BYTECODE VERIFICATION FAILED", severity: Bug },
     ],
+    Mutation: [
+        ArithmeticOperator: {msg: "Prover passed after arithmetic operator is mutated", severity: Warning},
+        Constant: {msg: "Prover passed after Constant value is mutated", severity: Warning},
+        IfElse: {msg: "Prover passed after if-else condition is mutated", severity: Warning},
+        ContinueBreak: {msg: "Prover passed after continue-break is mutated", severity: Warning},
+        Borrow: {msg: "Prover passed after borrow is mutated" ,severity: Warning},
+        Unary: {msg: "Prover passed after unwary is mutated", severity: Warning},
+        BitOperator: {msg: "Prover passed after bit operator is mutated", severity: Warning},
+        CompareOperator: {msg: "Prover passed after compare operator is mutated", severity: Warning},
+        BoolOperator: {msg: "Prover passed after bool operator is mutated", severity: Warning}
+
+    ]
 );
 
 //**************************************************************************************************
