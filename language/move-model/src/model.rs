@@ -450,14 +450,14 @@ impl VerificationScope {
 #[derive(Debug)]
 pub struct GlobalEnv {
     /// A Files database for the codespan crate which supports diagnostics.
-    source_files: Files<String>,
+    pub source_files: Files<String>,
     /// A map of FileId in the Files database to information about documentation comments in a file.
     /// The comments are represented as map from ByteIndex into string, where the index is the
     /// start position of the associated language item in the source.
     doc_comments: BTreeMap<FileId, BTreeMap<ByteIndex, String>>,
     /// A mapping from file hash to file name and associated FileId. Though this information is
     /// already in `source_files`, we can't get it out of there so need to book keep here.
-    file_hash_map: BTreeMap<FileHash, (String, FileId)>,
+    pub file_hash_map: BTreeMap<FileHash, (String, FileId)>,
     /// Bijective mapping between FileId and a plain int. FileId's are themselves wrappers around
     /// ints, but the inner representation is opaque and cannot be accessed. This is used so we
     /// can emit FileId's to generated code and read them back.
@@ -504,6 +504,7 @@ pub struct GlobalEnv {
     pub is_source_module_flag: bool,
     pub module_ident: BTreeMap<location::Loc,ModuleIdent>,
     pub diags_map: BTreeMap<location::Loc, String>,
+    pub appendix: String,
 }
 
 /// Struct a helper type for implementing fmt::Display depending on GlobalEnv
@@ -561,6 +562,7 @@ impl GlobalEnv {
             is_source_module: BTreeMap::new(),
             is_source_module_flag: false,
             diags_map: BTreeMap::new(),
+            appendix: String::new(),
         }
     }
 
@@ -849,6 +851,7 @@ impl GlobalEnv {
 
     /// Returns the number of diagnostics.
     pub fn diag_count(&self, min_severity: Severity) -> usize {
+        //println!("diags{:?}",&self.diags);
         self.diags
             .borrow()
             .iter()

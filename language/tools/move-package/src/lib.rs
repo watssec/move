@@ -27,7 +27,7 @@ use crate::{
     resolution::resolution_graph::{ResolutionGraph, ResolvedGraph},
     source_package::{layout, manifest_parser},
 };
-
+use move_compiler::Flags;
 #[derive(Debug, StructOpt, Clone, Serialize, Deserialize, Eq, PartialEq, PartialOrd)]
 #[structopt(
     name = "Move Package",
@@ -114,14 +114,15 @@ impl BuildConfig {
     // across all packages and build the Move model from that.
     // TODO: In the future we will need a better way to do this to support renaming in packages
     // where we want to support building a Move model.
-    pub fn move_model_for_package(
+    pub fn  move_model_for_package(
         self,
+        flags: Flags,
         path: &Path,
         model_config: ModelConfig,
     ) -> Result<GlobalEnv> {
         let resolved_graph = self.resolution_graph_for_package(path)?;
         let mutx = PackageLock::lock();
-        let ret = ModelBuilder::create(resolved_graph, model_config).build_model();
+        let ret = ModelBuilder::create(resolved_graph, model_config).build_model(flags);
         mutx.unlock();
         ret
     }

@@ -230,6 +230,7 @@ codes!(
         BytecodeGeneration: { msg: "BYTECODE GENERATION FAILED", severity: Bug },
         BytecodeVerification: { msg: "BYTECODE VERIFICATION FAILED", severity: Bug },
     ],
+
     Mutation: [
         ArithmeticOperator: {msg: "Prover passed after arithmetic operator is mutated", severity: Warning},
         Constant: {msg: "Prover passed after Constant value is mutated", severity: Warning},
@@ -239,7 +240,8 @@ codes!(
         Unary: {msg: "Prover passed after unwary is mutated", severity: Warning},
         BitOperator: {msg: "Prover passed after bit operator is mutated", severity: Warning},
         CompareOperator: {msg: "Prover passed after compare operator is mutated", severity: Warning},
-        BoolOperator: {msg: "Prover passed after bool operator is mutated", severity: Warning}
+        BoolOperator: {msg: "Prover passed after bool operator is mutated", severity: Warning},
+        EqualOperator: {msg: "Prover passed after equal operator is mutated", severity: Warning}
 
     ]
 );

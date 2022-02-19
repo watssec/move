@@ -35,8 +35,8 @@ use move_package::{
 use move_unit_test::UnitTestingConfig;
 use structopt::StructOpt;
 
-use crate::{package::prover::run_move_prover, NativeFunctionRecord};
-
+use crate::{package::prover::run_move_prover, package::mutation::run_move_mutation, NativeFunctionRecord};
+use move_compiler::Flags;
 #[derive(StructOpt)]
 pub enum CoverageSummaryOptions {
     /// Display a coverage summary for all modules in this package
@@ -105,6 +105,21 @@ pub enum PackageCommand {
         #[structopt(subcommand)]
         options: Option<ProverOptions>,
     },
+
+    #[structopt(name = "mutation")]
+    Mutation {
+        /// The target filter used to prune the modules to verify. Modules with a name that contains
+        /// this string will be part of verification.
+        #[structopt(short = "t", long = "target")]
+        target_filter: Option<String>,
+        /// Internal field indicating that this prover run is for a test.
+        #[structopt(skip)]
+        for_test: bool,
+        /// Any options passed to the prover.
+        #[structopt(subcommand)]
+        options: Option<MutationOptions>,
+    },
+
     /// Inspect test coverage for this package. A previous test run with the `--coverage` flag must
     /// have previously been run.
     #[structopt(name = "coverage")]
@@ -177,6 +192,12 @@ pub enum ProverOptions {
     Options(Vec<String>),
 }
 
+#[derive(StructOpt, Debug)]
+pub enum MutationOptions{
+    // Pass through unknown commands to the prover Clap parser
+    #[structopt(external_subcommand)]
+    Options(Vec<String>),
+}
 /// Encapsulates the possible returned states when running unit tests on a move package.
 #[derive(PartialEq)]
 pub enum UnitTestResult {
@@ -341,6 +362,17 @@ pub fn handle_package_commands(
                 run_move_prover(config, &rerooted_path, target_filter, *for_test, &[])?
             }
         }
+        PackageCommand::Mutation{
+            target_filter,
+            for_test,
+            options,
+        } => {
+            if let Some(MutationOptions::Options(opts)) = options {
+                run_move_mutation(config, &rerooted_path, target_filter, *for_test, opts)?
+            }else{
+                run_move_mutation(config, &rerooted_path, target_filter, *for_test, &[])?
+            }
+        }
         PackageCommand::ErrMapGen {
             error_prefix,
             output_file,
@@ -354,6 +386,7 @@ pub fn handle_package_commands(
                 .to_string_lossy()
                 .to_string();
             let model = config.move_model_for_package(
+                Flags::empty(),
                 &rerooted_path,
                 ModelConfig {
                     all_files_as_targets: true,

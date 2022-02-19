@@ -15,7 +15,7 @@ use std::{
     time::Instant,
 };
 use tempfile::TempDir;
-
+use move_compiler::Flags;
 // =================================================================================================
 // API for Rust unit tests
 
@@ -150,6 +150,7 @@ pub fn run_move_prover(
     }
     let now = Instant::now();
     let model = config.move_model_for_package(
+        Flags::empty(),
         path,
         ModelConfig {
             all_files_as_targets: false,

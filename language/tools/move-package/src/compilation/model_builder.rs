@@ -4,8 +4,8 @@
 use crate::{resolution::resolution_graph::ResolvedGraph, ModelConfig};
 use anyhow::Result;
 use move_compiler::shared::NumericalAddress;
-use move_model::{model::GlobalEnv, options::ModelBuilderOptions, run_model_builder_with_options};
-
+use move_model::{model::GlobalEnv, options::ModelBuilderOptions, run_model_builder_with_options_and_compilation_flags};
+use move_compiler::Flags;
 #[derive(Debug, Clone)]
 pub struct ModelBuilder {
     resolution_graph: ResolvedGraph,
@@ -25,7 +25,7 @@ impl ModelBuilder {
     // across all packages and build the Move model from that.
     // TODO: In the future we will need a better way to do this to support renaming in packages
     // where we want to support building a Move model.
-    pub fn build_model(&self) -> Result<GlobalEnv> {
+    pub fn build_model(&self, flags:Flags) -> Result<GlobalEnv> {
         // Make sure no renamings have been performed
         for (pkg_name, pkg) in self.resolution_graph.package_table.iter() {
             if !pkg.renaming.is_empty() {
@@ -66,6 +66,7 @@ impl ModelBuilder {
             (targets, vec![])
         } else {
             (targets, deps)
+
         };
         if let Some(filter) = &self.model_config.target_filter {
             // Filtering targets moves them into the deps
@@ -73,10 +74,11 @@ impl ModelBuilder {
             targets = targets.into_iter().filter(|t| t.contains(filter)).collect();
         }
 
-        run_model_builder_with_options(
+        run_model_builder_with_options_and_compilation_flags(
             &targets,
             &deps,
             ModelBuilderOptions::default(),
+            flags,
             root_package
                 .resolution_table
                 .into_iter()

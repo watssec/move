@@ -108,6 +108,7 @@ pub fn run_model_builder_with_options_and_compilation_flags(
         .set_flags(flags)
         .set_named_address_values(named_address_mapping.clone())
         .run::<PASS_PARSER>()?;
+    env.files = files.clone();
     let (comment_map, compiler) = match comments_and_compiler_res {
         Err(diags) => {
             // Add source files so that the env knows how to translate locations of parse errors
@@ -252,6 +253,9 @@ pub fn run_model_builder_with_options_and_compilation_flags(
                 env.is_source_module.insert(*loc, *result);
             }
             env.is_source_module_flag = compiler.compilation_env.is_source_module_flag;
+
+            // pass the appendix into global env
+            env.appendix = compiler.compilation_env.appendix.clone();
             // tag whether mutated
             let (units, warnings) = compiler.into_compiled_units();
             if !warnings.is_empty() {

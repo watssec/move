@@ -350,6 +350,7 @@ pub struct CompilationEnv {
     pub diag_map: BTreeMap<Loc,String>,
     pub borrow_mutation: Vec<(bool,Box<N::Exp>)>,
     pub mutation_point: BTreeMap<String, BTreeMap<String, bool>>,
+    pub appendix: String,
 
     // TODO(tzakian): Remove the global counter and use this counter instead
 
@@ -376,6 +377,7 @@ impl CompilationEnv {
             diag_map: BTreeMap::new(),
             borrow_mutation: Vec::new(),
             mutation_point: mutation_point_outer,
+            appendix: String::new(),
         }
     }
 

@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
+#[macro_use]
+extern crate move_compiler;
 use move_core_types::{account_address::AccountAddress, errmap::ErrorMapping};
 
 fn main() -> Result<()> {

@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use move_package::BuildConfig;
-
+#[macro_use]
+extern crate move_compiler;
 pub mod base;
 pub mod experimental;
 pub mod package;
