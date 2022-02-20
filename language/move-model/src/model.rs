@@ -851,7 +851,7 @@ impl GlobalEnv {
 
     /// Returns the number of diagnostics.
     pub fn diag_count(&self, min_severity: Severity) -> usize {
-        //println!("diags{:?}",&self.diags);
+        println!("diags{:?}",&self.diags);
         self.diags
             .borrow()
             .iter()
