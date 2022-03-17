@@ -25,6 +25,9 @@ itertools = "0.10.0"
 pbr = "1.0.3"
 bcs = "0.1.2"
 move-bytecode-verifier = { path = "../../move-bytecode-verifier" }
+serde_json="1.0"
+codespan = "0.11.1"
+rustc-serialize = "0.3"
 
 move-disassembler = { path = "../move-disassembler" }
 move-command-line-common = { path = "../../move-command-line-common" }

@@ -27,7 +27,6 @@ impl ModelBuilder {
     // where we want to support building a Move model.
     pub fn build_model(&self, flags:Flags) -> Result<GlobalEnv> {
         // Make sure no renamings have been performed
-        println!("flags{:?}",&flags);
         for (pkg_name, pkg) in self.resolution_graph.package_table.iter() {
             if !pkg.renaming.is_empty() {
                 anyhow::bail!(

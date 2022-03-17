@@ -32,6 +32,7 @@ use crate::{
     prover_task_runner::{ProverTaskRunner, RunBoogieWithSeeds},
 };
 
+use serde_json::json;
 /// A type alias for the way how we use crate `pretty`'s document type. `pretty` is a
 /// Wadler-style pretty printer. Our simple usage doesn't require any lifetime management.
 type PrettyDoc = RcDoc<'static, ()>;
@@ -57,7 +58,7 @@ pub struct BoogieOutput {
 }
 
 /// Kind of boogie error.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum BoogieErrorKind {
     Assertion,
     Inconclusive,
@@ -73,6 +74,7 @@ impl BoogieErrorKind {
 }
 
 /// A boogie error.
+#[derive(Debug)]
 pub struct BoogieError {
     pub kind: BoogieErrorKind,
     pub loc: Loc,
@@ -82,6 +84,7 @@ pub struct BoogieError {
 }
 
 /// A trace entry.
+#[derive(Debug)]
 pub enum TraceEntry {
     AtLocation(Loc),
     Temporary(QualifiedId<FunId>, TempIndex, ModelValue),
@@ -213,12 +216,23 @@ impl<'env> BoogieWrapper<'env> {
     /// Calls boogie and analyzes output.
     pub fn call_boogie_and_verify_output(&self, boogie_file: &str) -> anyhow::Result<()> {
         let BoogieOutput { errors, all_output } = self.call_boogie(boogie_file)?;
+
         let boogie_log_file = self.options.get_boogie_log_file(boogie_file);
         let log_file_existed = std::path::Path::new(&boogie_log_file).exists();
         debug!("writing boogie log to {}", boogie_log_file);
         fs::write(&boogie_log_file, &all_output)?;
 
+
         for error in &errors {
+            let genesis_round:usize = "0".parse().unwrap();
+            if self.env.mutated{
+            let mut evolution_vec = json!({
+                "mutation_location": (*error).loc,
+                "evolution_round": genesis_round,
+                "message": error.message,
+            });
+            println!("evolution_vec{:?}",&evolution_vec);
+            }
             self.add_error(error);
         }
 
@@ -392,6 +406,7 @@ impl<'env> BoogieWrapper<'env> {
             diag = diag.with_notes(display);
         }
         self.env.add_diag(diag);
+
     }
 
     fn get_abbreviated_source(&self, node_id: NodeId) -> String {

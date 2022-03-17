@@ -92,7 +92,7 @@ pub const GHOST_MEMORY_PREFIX: &str = "Ghost$";
 /// # Locations
 
 /// A location, consisting of a FileId and a span in this file.
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone,Serialize)]
 pub struct Loc {
     file_id: FileId,
     span: Span,
@@ -507,6 +507,8 @@ pub struct GlobalEnv {
     pub appendix: String,
 }
 
+#[derive(Debug)]
+
 /// Struct a helper type for implementing fmt::Display depending on GlobalEnv
 pub struct EnvDisplay<'a, T> {
     pub env: &'a GlobalEnv,
@@ -851,7 +853,7 @@ impl GlobalEnv {
 
     /// Returns the number of diagnostics.
     pub fn diag_count(&self, min_severity: Severity) -> usize {
-        println!("diags{:?}",&self.diags);
+        //println!("diags{:?}",&self.diags);
         self.diags
             .borrow()
             .iter()

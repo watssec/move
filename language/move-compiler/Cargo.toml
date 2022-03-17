@@ -21,6 +21,7 @@ num = "0.4"
 num-integer = "0.1"
 rand = "0.8.4"
 closure = "0.3.0"
+rustc-serialize = "0.3"
 
 move-binary-format = { path = "../move-binary-format" }
 move-core-types = { path = "../move-core/types" }
