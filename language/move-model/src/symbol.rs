@@ -11,9 +11,10 @@ use std::{
     fmt::{Error, Formatter},
     rc::Rc,
 };
+use serde::{Deserialize, Serialize};
 
 /// Representation of a symbol.
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Deserialize, Serialize)]
 pub struct Symbol(usize);
 
 impl Symbol {

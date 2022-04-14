@@ -194,7 +194,8 @@ pub enum ProverOptions {
 
 #[derive(StructOpt, Debug)]
 pub enum MutationOptions{
-    // Pass through unknown commands to the prover Clap parser
+
+    // Pass through unknown commands to the prover Clap parser'
     #[structopt(external_subcommand)]
     Options(Vec<String>),
 }

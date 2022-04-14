@@ -3,10 +3,10 @@
 
 //! Wrapper around the boogie program. Allows to call boogie and analyze the output.
 
-use std::{collections::BTreeMap, fs, num::ParseIntError, option::Option::None};
-
+use std::{collections::BTreeMap, fs, num::ParseIntError, option::Option::None, path::Path};
+use serde::{Deserialize, Serialize};
 use anyhow::anyhow;
-use codespan::{ByteIndex, ColumnIndex, LineIndex, Location, Span};
+use codespan::{ByteIndex, ColumnIndex, LineIndex, Location, Span, FileId};
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 use itertools::Itertools;
 use log::{debug, info, warn};
@@ -14,9 +14,9 @@ use num::BigInt;
 use once_cell::sync::Lazy;
 use pretty::RcDoc;
 use regex::Regex;
-
 use move_binary_format::file_format::FunctionDefinitionIndex;
 use move_model::{
+    symbol::Symbol,
     ast::TempIndex,
     code_writer::CodeWriter,
     model::{FunId, GlobalEnv, Loc, ModuleId, NodeId, QualifiedId, StructId},
@@ -31,7 +31,7 @@ use crate::{
     options::{BoogieOptions, VectorTheory},
     prover_task_runner::{ProverTaskRunner, RunBoogieWithSeeds},
 };
-
+use move_ir_types::location;
 use serde_json::json;
 /// A type alias for the way how we use crate `pretty`'s document type. `pretty` is a
 /// Wadler-style pretty printer. Our simple usage doesn't require any lifetime management.
@@ -57,8 +57,17 @@ pub struct BoogieOutput {
     pub all_output: String,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ErrorJson{
+    kind: BoogieErrorKind,
+    file_id: FileId,
+    start: ByteIndex,
+    end: ByteIndex,
+}
+
+
 /// Kind of boogie error.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum BoogieErrorKind {
     Assertion,
     Inconclusive,
@@ -214,7 +223,9 @@ impl<'env> BoogieWrapper<'env> {
     }
 
     /// Calls boogie and analyzes output.
-    pub fn call_boogie_and_verify_output(&self, boogie_file: &str) -> anyhow::Result<()> {
+    pub fn call_boogie_and_verify_output(&self, boogie_file: &str,
+        round_counter: usize)-> anyhow::Result<Vec<String>> {
+
         let BoogieOutput { errors, all_output } = self.call_boogie(boogie_file)?;
 
         let boogie_log_file = self.options.get_boogie_log_file(boogie_file);
@@ -222,25 +233,34 @@ impl<'env> BoogieWrapper<'env> {
         debug!("writing boogie log to {}", boogie_log_file);
         fs::write(&boogie_log_file, &all_output)?;
 
-
+        let mut error_vec = Vec::new();
         for error in &errors {
-            let genesis_round:usize = "0".parse().unwrap();
-            if self.env.mutated{
-            let mut evolution_vec = json!({
-                "mutation_location": (*error).loc,
-                "evolution_round": genesis_round,
-                "message": error.message,
-            });
-            println!("evolution_vec{:?}",&evolution_vec);
-            }
+            let error_kind = error.kind;
+            let file_id = error.loc.file_id;
+            let start_pos = error.loc.span.start();
+            let end_pos = error.loc.span.end();
+            let error_message = error.message.clone();
+            let error_json = ErrorJson {
+                kind: error_kind,
+                file_id: file_id,
+                start: start_pos,
+                end: end_pos,
+            };
+
+            let error_json = serde_json::to_string(&error_json)?;
+            error_vec.push(error_json);
+
             self.add_error(error);
-        }
+        };
+
+        //
 
         if !log_file_existed && !self.options.keep_artifacts {
             std::fs::remove_file(boogie_log_file).unwrap_or_default();
         }
 
-        Ok(())
+        println!("error_vec in call boogie{:?}",&error_vec);
+        Ok(error_vec)
     }
 
     /// Helper to add a boogie error as a codespan Diagnostic.
@@ -1310,3 +1330,5 @@ fn index_range_check(max: usize) -> impl FnOnce(usize) -> Result<usize, ModelPar
         }
     }
 }
+
+

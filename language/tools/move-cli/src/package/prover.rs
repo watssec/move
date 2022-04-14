@@ -25,7 +25,6 @@ pub struct ProverTest {
     options: Vec<String>,
     local_only: bool,
 }
-
 impl ProverTest {
     /// Creates a new prover test for the Move package at path relative to crate root.
     pub fn create(path: impl Into<String>) -> Self {

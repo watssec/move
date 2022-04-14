@@ -256,6 +256,10 @@ pub fn run_model_builder_with_options_and_compilation_flags(
 
             // pass the appendix into global env
             env.appendix = compiler.compilation_env.appendix.clone();
+            env.current_function= compiler.compilation_env.current_function.clone();
+            env.current_module = compiler.compilation_env.current_module.clone();
+            env.function_map = compiler.compilation_env.function_map.clone();
+
             // tag whether mutated
             let (units, warnings) = compiler.into_compiled_units();
             if !warnings.is_empty() {

@@ -20,7 +20,7 @@ use move_model::{
     parse_addresses_from_options, run_model_builder_with_options,
 };
 use move_prover_boogie_backend::{
-    add_prelude, boogie_wrapper::BoogieWrapper, bytecode_translator::BoogieTranslator,
+    add_prelude, boogie_wrapper::{self,BoogieWrapper}, bytecode_translator::BoogieTranslator,
 };
 use move_stackless_bytecode::{
     escape_analysis::EscapeAnalysisProcessor,
@@ -34,11 +34,35 @@ use std::{
     path::{Path, PathBuf},
     time::Instant,
 };
-
+use serde::{Deserialize, Serialize};
+use move_command_line_common::files::FileHash;
 pub mod cli;
+use serde_json::json;
+use move_model::symbol::Symbol;
+use move_ir_types::location;
+use move_compiler::parser::ast::FunctionName;
+use move_compiler::shared::Identifier;
 
 // =================================================================================================
 // Prover API
+#[derive(Serialize, Deserialize, Debug)]
+
+pub struct GenesisInfo {
+    function_id: String,
+    mutation_chain: Vec<EvolutionInfo>,
+}
+#[derive(Debug, Serialize, Deserialize)]
+pub struct EvolutionInfo{
+    function_id: String,
+    mutation_file_id: FileHash,
+    mutation_start_pos: location::ByteIndex,
+    mutation_end_pos: location::ByteIndex,
+    evolution_round: usize,
+    fin: bool,
+    mutation_chain:Vec<EvolutionInfo>,
+    error: Vec<String>,
+}
+
 
 pub fn run_move_prover_errors_to_stderr(options: Options) -> anyhow::Result<()> {
     let mut error_writer = StandardStream::stderr(ColorChoice::Auto);
@@ -143,7 +167,8 @@ pub fn run_move_prover_with_model<W: WriteColor>(
 
     // Verify boogie code.
     let now = Instant::now();
-    verify_boogie(env, &options, &targets, code_writer)?;
+    let fake_round_counter: usize = 0;
+    verify_boogie(env, &options, &targets, code_writer,fake_round_counter)?;
     let verify_duration = now.elapsed();
 
     // Report durations.
@@ -192,15 +217,18 @@ pub fn generate_boogie(
     Ok(writer)
 }
 
+
 pub fn verify_boogie(
     env: &GlobalEnv,
     options: &Options,
     targets: &FunctionTargetsHolder,
     writer: CodeWriter,
-) -> anyhow::Result<()> {
+    round_counter: usize,
+) -> anyhow::Result<Vec<String>> {
     let output_existed = std::path::Path::new(&options.output_path).exists();
     debug!("writing boogie to `{}`", &options.output_path);
     writer.process_result(|result| fs::write(&options.output_path, result))?;
+    let mut unwrap_error_vec = Vec::new();
     if !options.prover.generate_only {
         let boogie = BoogieWrapper {
             env,
@@ -208,13 +236,17 @@ pub fn verify_boogie(
             writer: &writer,
             options: &options.backend,
         };
-        boogie.call_boogie_and_verify_output(&options.output_path)?;
+        unwrap_error_vec = boogie.call_boogie_and_verify_output(&options.output_path, round_counter)?;
+        println!("error vec in verify boogie{:?}",&unwrap_error_vec);
+        //unwrap_error_vec = error_vec?;
         if !output_existed && !options.backend.keep_artifacts {
             std::fs::remove_file(&options.output_path).unwrap_or_default();
         }
     }
-    Ok(())
+
+    Ok(unwrap_error_vec)
 }
+
 
 /// Create bytecode and process it.
 pub fn create_and_process_bytecode(options: &Options, env: &GlobalEnv) -> FunctionTargetsHolder {

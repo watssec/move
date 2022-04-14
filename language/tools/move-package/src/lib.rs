@@ -114,7 +114,7 @@ impl BuildConfig {
     // across all packages and build the Move model from that.
     // TODO: In the future we will need a better way to do this to support renaming in packages
     // where we want to support building a Move model.
-    pub fn  move_model_for_package(
+    pub fn move_model_for_package(
         self,
         flags: Flags,
         path: &Path,

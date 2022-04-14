@@ -5,6 +5,7 @@ use crate::{
     command_line as cli,
     diagnostics::{codes::Severity, Diagnostic, Diagnostics},
 };
+use move_command_line_common::files::FileHash;
 use move_core_types::account_address::AccountAddress;
 use move_ir_types::location::*;
 use move_symbol_pool::Symbol;
@@ -18,6 +19,7 @@ use std::{
 };
 use structopt::*;
 use crate::expansion::ast::ModuleIdent;
+use crate::parser::ast::{FunctionName,ModuleName};
 pub mod ast_debug;
 pub mod remembering_unique_map;
 pub mod unique_map;
@@ -337,7 +339,7 @@ pub fn shortest_cycle<'a, T: Ord + Hash>(
 
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CompilationEnv {
+pub struct  CompilationEnv {
     pub flags: Flags,
     diags: Diagnostics,
     named_address_mapping: BTreeMap<Symbol, NumericalAddress>,
@@ -346,11 +348,15 @@ pub struct CompilationEnv {
     pub moduleIdent: BTreeMap<Loc,ModuleIdent>,
     pub is_source_module: BTreeMap<ModuleIdent,bool>,
     pub is_source_module_flag: bool,
+    pub current_module: Option<ModuleName>,
+    pub current_function: Option<FunctionName>,
+    pub function_map: BTreeMap<Loc, Option<FunctionName>>,
     pub mutated_ident: Vec<ModuleIdent>,
     pub diag_map: BTreeMap<Loc,String>,
     pub borrow_mutation: Vec<(bool,Box<N::Exp>)>,
     pub mutation_point: BTreeMap<String, BTreeMap<String, bool>>,
-    pub appendix: String,
+    // TODO: Change this appendix to a vector in order to fit the latter round of mutations
+    pub appendix: Vec<String>,
 
     // TODO(tzakian): Remove the global counter and use this counter instead
 
@@ -373,11 +379,14 @@ impl CompilationEnv {
             moduleIdent: BTreeMap::new(),
             is_source_module: BTreeMap::new(),
             is_source_module_flag: false,
+            current_module:None,
+            current_function: None,
+            function_map: BTreeMap::new(),
             mutated_ident:Vec::new(),
             diag_map: BTreeMap::new(),
             borrow_mutation: Vec::new(),
             mutation_point: mutation_point_outer,
-            appendix: String::new(),
+            appendix: Vec::new(),
         }
     }
 
@@ -461,6 +470,7 @@ pub fn format_comma<T: fmt::Display, I: IntoIterator<Item = T>>(items: I) -> Str
 // Flags
 //**************************************************************************************************
 
+
 #[derive(Clone, Debug, Eq, PartialEq, StructOpt)]
 pub struct Flags {
     /// Compile in test mode
@@ -485,11 +495,11 @@ pub struct Flags {
 
     pub mutation: bool,
 
-    pub current_file_hash: String,
+    pub current_file_hash: Vec<FileHash>,
 
-    pub current_start: u32,
+    pub current_start: Vec<u32>,
 
-    pub current_end: u32,
+    pub current_end: Vec<u32>,
 
 
 
@@ -501,9 +511,9 @@ impl Flags {
             test: false,
             no_shadow: false,
             mutation: false,
-            current_file_hash: "0f53266ef56c599770fa270b73a918e33d698eb164f3387450c49b9e33d89676".to_string(),
-            current_start:0,
-            current_end:0,
+            current_file_hash: Vec::new(),
+            current_start: Vec::new(),
+            current_end: Vec::new(),
         }
     }
 
@@ -512,9 +522,9 @@ impl Flags {
             test: true,
             no_shadow: false,
             mutation: false,
-            current_file_hash: "0f53266ef56c599770fa270b73a918e33d698eb164f3387450c49b9e33d89676".to_string(),
-            current_start:0,
-            current_end:0,
+            current_file_hash: Vec::new(),
+            current_start: Vec::new(),
+            current_end:Vec::new(),
         }
     }
 

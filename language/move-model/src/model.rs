@@ -71,11 +71,13 @@ use crate::{
 use move_ir_types::location;
 use move_symbol_pool::Symbol as MoveStringSymbol;
 use move_compiler::expansion::ast::ModuleIdent;
+use move_compiler::parser::ast::FunctionName;
+
 // import and re-expose symbols
 use crate::ast::Attribute;
 use move_binary_format::file_format::CodeOffset;
 pub use move_binary_format::file_format::{AbilitySet, Visibility as FunctionVisibility};
-
+use std::collections::HashSet;
 // =================================================================================================
 /// # Constants
 
@@ -92,10 +94,10 @@ pub const GHOST_MEMORY_PREFIX: &str = "Ghost$";
 /// # Locations
 
 /// A location, consisting of a FileId and a span in this file.
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone,Serialize)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone,Serialize, Copy)]
 pub struct Loc {
-    file_id: FileId,
-    span: Span,
+    pub file_id: FileId,
+    pub span: Span,
 }
 
 impl Loc {
@@ -503,8 +505,14 @@ pub struct GlobalEnv {
     pub is_source_module: BTreeMap<ModuleIdent,bool>,
     pub is_source_module_flag: bool,
     pub module_ident: BTreeMap<location::Loc,ModuleIdent>,
+    pub func_info: BTreeMap<Loc, Symbol>,
     pub diags_map: BTreeMap<location::Loc, String>,
-    pub appendix: String,
+    pub appendix: Vec<String>,
+    pub genesis_flag: bool,
+    pub function_map: BTreeMap<location::Loc,Option<FunctionName>>,
+    pub current_function: Option<FunctionName>,
+    pub current_module: Option<move_compiler::parser::ast::ModuleName>,
+    pub current_vec: Vec<Option<location::Loc>>,
 }
 
 #[derive(Debug)]
@@ -559,12 +567,18 @@ impl GlobalEnv {
             extensions: Default::default(),
             mutation_counter: BTreeMap::new(),
             module_ident: BTreeMap::new(),
+            func_info: BTreeMap::new(),
             files: HashMap::new(),
             mutated: false,
             is_source_module: BTreeMap::new(),
             is_source_module_flag: false,
             diags_map: BTreeMap::new(),
-            appendix: String::new(),
+            appendix: Vec::new(),
+            genesis_flag: true,
+            current_vec: Vec::new(),
+            current_module: None,
+            current_function: None,
+            function_map: BTreeMap::new(),
         }
     }
 
@@ -2830,37 +2844,37 @@ pub struct Parameter(pub Symbol, pub Type);
 #[derive(Debug)]
 pub struct FunctionData {
     /// Name of this function.
-    name: Symbol,
+    pub name: Symbol,
 
     /// Location of this function.
-    loc: Loc,
+    pub loc: Loc,
 
     /// The definition index of this function in its module.
-    def_idx: FunctionDefinitionIndex,
+    pub def_idx: FunctionDefinitionIndex,
 
     /// The handle index of this function in its module.
-    handle_idx: FunctionHandleIndex,
+    pub handle_idx: FunctionHandleIndex,
 
     /// Attributes attached to this function.
-    attributes: Vec<Attribute>,
+    pub attributes: Vec<Attribute>,
 
     /// List of function argument names. Not in bytecode but obtained from AST.
-    arg_names: Vec<Symbol>,
+    pub arg_names: Vec<Symbol>,
 
     /// List of type argument names. Not in bytecode but obtained from AST.
-    type_arg_names: Vec<Symbol>,
+    pub type_arg_names: Vec<Symbol>,
 
     /// Specification associated with this function.
-    spec: Spec,
+    pub spec: Spec,
 
     /// A cache for the called functions.
-    called_funs: RefCell<Option<BTreeSet<QualifiedId<FunId>>>>,
+    pub called_funs: RefCell<Option<BTreeSet<QualifiedId<FunId>>>>,
 
     /// A cache for the calling functions.
-    calling_funs: RefCell<Option<BTreeSet<QualifiedId<FunId>>>>,
+    pub calling_funs: RefCell<Option<BTreeSet<QualifiedId<FunId>>>>,
 
     /// A cache for the transitive closure of the called functions.
-    transitive_closure_of_called_funs: RefCell<Option<BTreeSet<QualifiedId<FunId>>>>,
+    pub transitive_closure_of_called_funs: RefCell<Option<BTreeSet<QualifiedId<FunId>>>>,
 }
 
 impl FunctionData {
@@ -2891,7 +2905,7 @@ pub struct FunctionEnv<'env> {
     pub module_env: ModuleEnv<'env>,
 
     /// Reference to the function data.
-    data: &'env FunctionData,
+    pub data: &'env FunctionData,
 }
 
 impl<'env> FunctionEnv<'env> {

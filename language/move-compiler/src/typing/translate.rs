@@ -22,6 +22,7 @@ use move_symbol_pool::Symbol;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use crate::mutation;
 
+
 //**************************************************************************************************
 // Entry
 //**************************************************************************************************
@@ -82,6 +83,8 @@ fn module(
         .for_each(|(_, _, s)| struct_def(context, s));
     let constants = nconstants.map(|name, c| constant(context, name, c));
     let functions = nfunctions.map(|name, f| function(context, name, f, false));
+    //println!("functions{:?}",&context.current_function);
+    //println!("modules{:?}",&context.current_module);
     assert!(context.constraints.is_empty());
     // insert is_source_module
 
@@ -1145,115 +1148,113 @@ fn exp_(context: &mut Context, initial_ne: N::Exp) -> T::Exp {
         }};
     }
 
+
     fn exp_loop(stack: &mut Stack, sp!(loc, cur_): N::Exp) {
+
+
+        // This is to enable the combination of several points in the mutation by using a vector to contain them.
+        // construct the flag and return a vec<Loc>
+
+        // BinOp mutation choices
+        let mutate_list =
+            vec![BinOp_::Add, BinOp_::Sub, BinOp_::Mul, BinOp_::Div, BinOp_::BitOr,
+                 BinOp_::BitAnd, BinOp_::Xor, BinOp_::Eq, BinOp_::Neq,
+                 BinOp_::Lt, BinOp_::Gt, BinOp_::Ge, BinOp_::Le, BinOp_::And, BinOp_::Or];
+
+        let mut loc_vec = loc_vec_construction(stack.context);
+
         let flag = stack.context.env.flags.mutation;
 
-        // this flag is for initialization of mutation, if it's on, add the expression location to mutation_counter
-
+        // A button for mutation condition in the mutation points
+        let mutate_condition = loc_vec.contains(&loc) && flag;
         // General mutation types
         // Int ops/ bit ops/ bool ops/compare ops
         match cur_ {
-
             NE::BinopExp(nlhs, obop, nrhs) => {
                 //Firstly add them to env for the iteration outside this
                 // bit ops  -> switch (bitor, bitand, xor)
-                if !flag&&(obop.value == BinOp_::And||
+                if !flag && (obop.value == BinOp_::And ||
                     obop.value == BinOp_::Or)
                 {
                     mutation::mutation_workflow::env_insert(&mut stack.context, "BoolOperator".to_string(), loc);
                 }
 
-                if !flag &&(obop.value == BinOp_::Eq ||
-                obop.value == BinOp_::Neq)
+                if !flag && (obop.value == BinOp_::Eq ||
+                    obop.value == BinOp_::Neq)
                 {
                     mutation::mutation_workflow::env_insert(&mut stack.context, "EqualOperator".to_string(), loc);
                 }
                 //compare ops
-                if !flag&&(
+                if !flag && (
                     obop.value == BinOp_::Lt ||
-                    obop.value == BinOp_::Gt ||
-                    obop.value == BinOp_::Ge ||
-                    obop.value == BinOp_::Le){
+                        obop.value == BinOp_::Gt ||
+                        obop.value == BinOp_::Ge ||
+                        obop.value == BinOp_::Le) {
                     mutation::mutation_workflow::env_insert(&mut stack.context, "CompareOperator".to_string(), loc);
                 }
                 // bit ops
-                if !flag&&(obop.value == BinOp_::BitOr ||
-                    obop.value == BinOp_::BitAnd||
-                    obop.value == BinOp_::Xor){
+                if !flag && (obop.value == BinOp_::BitOr ||
+                    obop.value == BinOp_::BitAnd ||
+                    obop.value == BinOp_::Xor) {
                     mutation::mutation_workflow::env_insert(&mut stack.context, "BitOperator".to_string(), loc);
                 }
                 // there are some compare ops also
                 // Mutating bit operator
                 // int ops
                 //it not in the mutation process -> in the init process, push the loc into the mutation_counter
-                if !flag&&(obop.value ==BinOp_::Add ||
+                if !flag && (obop.value == BinOp_::Add ||
                     obop.value == BinOp_::Sub ||
                     obop.value == BinOp_::Mul ||
-                    obop.value == BinOp_::Div){
+                    obop.value == BinOp_::Div) {
                     mutation::mutation_workflow::env_insert(&mut stack.context, "ArithmeticOperator".to_string(), loc);
                 }
 
                 // not in init process & not mutated
 
-
-                // BinOp mutation choices
-                let mutate_list =
-                    vec![BinOp_::Add, BinOp_::Sub, BinOp_::Mul, BinOp_::Div, BinOp_::BitOr,
-                         BinOp_::BitAnd, BinOp_::Xor, BinOp_::Eq, BinOp_::Neq,
-                         BinOp_::Lt,BinOp_::Gt, BinOp_::Ge, BinOp_::Le];
-                let bop = if flag &&stack.context.env.flags.current_start == loc.start
-                    && stack.context.env.flags.current_end == loc.end
-                    && stack.context.env.flags.current_file_hash == loc.file_hash.to_string()
-                    && mutate_list.contains(&obop.value) {
+                let bop = if mutate_condition && mutate_list.contains(&obop.value) {
                     let mut return_bop = obop.clone();
                     if obop.value == BinOp_::Lt ||
                         obop.value == BinOp_::Gt ||
                         obop.value == BinOp_::Ge ||
                         obop.value == BinOp_::Le {
-                        return_bop = mutation::mutation_workflow::compareoperator_mutation(obop);
-                    }
-                    else if obop.value ==BinOp_::Eq ||
+                        return_bop = mutation::mutation_workflow::compareoperator_mutation(&mut stack.context, obop);
+                    } else if obop.value == BinOp_::Eq ||
                         obop.value == BinOp_::Neq {
-                        return_bop = mutation::mutation_workflow::equal_mutation(obop);
-
-                    }
-                    else if obop.value ==BinOp_::And ||
+                        return_bop = mutation::mutation_workflow::equal_mutation(&mut stack.context, obop);
+                    } else if obop.value == BinOp_::And ||
                         obop.value == BinOp_::Or {
-                        return_bop = mutation::mutation_workflow::booloperator_mutation(obop);
-                    }
-                    else if obop.value ==BinOp_::BitAnd ||
+                        return_bop = mutation::mutation_workflow::booloperator_mutation(&mut stack.context, obop);
+                    } else if obop.value == BinOp_::BitAnd ||
                         obop.value == BinOp_::BitOr ||
                         obop.value == BinOp_::Xor {
-                        return_bop = mutation::mutation_workflow::bitoperator_mutation(obop);
-                    }
-                    else if obop.value ==BinOp_::Add ||
+                        return_bop = mutation::mutation_workflow::bitoperator_mutation(&mut stack.context, obop);
+                    } else if obop.value == BinOp_::Add ||
                         obop.value == BinOp_::Sub ||
                         obop.value == BinOp_::Mul ||
                         obop.value == BinOp_::Div {
-                        return_bop = mutation::mutation_workflow::expression_mutation(stack.context,obop);
+                        return_bop = mutation::mutation_workflow::expression_mutation(&mut stack.context, obop);
                     }
                     return_bop
-                }else{
+                } else {
                     obop
                 };
 
-                if flag && stack.context.env.flags.current_start == loc.start
-                    && stack.context.env.flags.current_end == loc.end
-                    && stack.context.env.flags.current_file_hash == loc.file_hash.to_string() &&
-                    mutate_list.contains(&obop.value) {
-
+                if mutate_condition {
                     stack.context.env.mutated = true;
                     stack.context.env.mutated_ident.push(stack.context.current_module.unwrap().clone());
-
+                    stack.context.env.current_function = stack.context.current_function.clone();
+                    // .value -> (moduleIdent ==> moduleIdent_)  | .module moduleIdent_ ==> moduleName
+                    stack.context.env.current_module = Some(stack.context.current_module.unwrap().value.module.clone());
                 };
+
                 let f_lhs = inner!(*nlhs);
                 let f_rhs = inner!(*nrhs);
-                let f_binop = move | s: &mut Stack | {
+                let f_binop = move |s: &mut Stack| {
                     let er = Box::new(s.operands.pop().unwrap());
                     let el = Box::new(s.operands.pop().unwrap());
-                    //println!("er{:?}, el{:?}" ,&er ,&el);
+
                     use BinOp_::*;
-                    let msg = | | format!("Incompatible arguments to '{}'", &bop);
+                    let msg = || format!("Incompatible arguments to '{}'", &bop);
                     let context = &mut s.context;
                     let (ty, operand_ty) = match &bop.value {
                         Sub | Add | Mul | Mod | Div => {
@@ -1289,7 +1290,7 @@ fn exp_(context: &mut Context, initial_ne: N::Exp) -> T::Exp {
                         }
 
                         Shl | Shr => {
-                            let msg = | | format!("Invalid argument to '{}'", & bop);
+                            let msg = || format!("Invalid argument to '{}'", &bop);
                             let u8ty = Type_::u8(er.exp.loc);
                             context.add_bits_constraint(
                                 el.exp.loc,
@@ -1317,10 +1318,10 @@ fn exp_(context: &mut Context, initial_ne: N::Exp) -> T::Exp {
                         }
 
                         Eq | Neq => {
-                            let ability_msg = Some(format! (
+                            let ability_msg = Some(format!(
                                 "'{}' requires the '{}' ability as the value is consumed. Try \
                                  borrowing the values with '&' first.'",
-                                & bop,
+                                &bop,
                                 Ability_::Drop,
                             ));
                             context.add_ability_constraint(
@@ -1393,11 +1394,29 @@ fn exp_(context: &mut Context, initial_ne: N::Exp) -> T::Exp {
     e_res
 }
 
+fn loc_vec_construction(context: &mut Context) -> Vec<Loc>{
+    let mut loc_vec = Vec::new();
+    let file_hash_vec = context.env.flags.current_file_hash.clone();
+    let start_vec = context.env.flags.current_start.clone();
+    let end_vec = context.env.flags.current_end.clone();
+
+    for cnt in 0..file_hash_vec.len(){
+        let temp_loc = Loc::new(file_hash_vec[cnt], start_vec[cnt], end_vec[cnt]);
+        loc_vec.push(temp_loc);
+    }
+
+    loc_vec
+}
+
 fn exp_inner(context: &mut Context, sp!(eloc, ne_): N::Exp) -> T::Exp {
     use N::Exp_ as NE;
     use T::UnannotatedExp_ as TE;
 
     let flag = context.env.flags.mutation;
+    let loc_vec = loc_vec_construction(context);
+
+    let mutate_condition =  loc_vec.contains(&eloc) && flag;
+    let insert_condition = loc_vec.contains(&eloc) && !flag;
     // Type(Spanned<Type_>), UnannotatedExp_
     // initialize return_tuple
     let mut return_tuple = (sp(eloc, Type_::Unit), TE::Unit { trailing:false });
@@ -1413,13 +1432,17 @@ fn exp_inner(context: &mut Context, sp!(eloc, ne_): N::Exp) -> T::Exp {
             if !flag{
                 mutation::mutation_workflow::env_insert(context, "Constant".to_string(), eloc);
             }
-            if flag && context.env.flags.current_start == eloc.start
-                && context.env.flags.current_end == eloc.end
-                && context.env.flags.current_file_hash == eloc.file_hash.to_string()
+
+
+            if mutate_condition
             {
+
                 mutated_value = mutation::mutation_workflow::constant_mutation(context, v.clone());
+
                 context.env.mutated = true;
                 context.env.mutated_ident.push(context.current_module.unwrap().clone());
+                context.env.current_function = context.current_function.clone();
+                context.env.current_module = Some(context.current_module.unwrap().value.module.clone());
             }
 
 
@@ -1431,9 +1454,12 @@ fn exp_inner(context: &mut Context, sp!(eloc, ne_): N::Exp) -> T::Exp {
         },
         NE::Value(sp!(vloc, v)) => {
             let mut return_v = v.clone();
-            if flag && context.env.flags.current_start == vloc.start
-                && context.env.flags.current_end == vloc.end
-                && context.env.flags.current_file_hash == vloc.file_hash.to_string(){
+            if mutate_condition{
+                context.env.mutated = true;
+                context.env.mutated_ident.push(context.current_module.unwrap().clone());
+                context.env.current_function = context.current_function.clone();
+
+                context.env.current_module = Some(context.current_module.unwrap().value.module.clone());
                 match v{
                     Value_::Bool(value)=> {
                         return_v = Value_::Bool(!value);
@@ -1456,8 +1482,7 @@ fn exp_inner(context: &mut Context, sp!(eloc, ne_): N::Exp) -> T::Exp {
                     }
                     _ => (),
                 }
-                context.env.mutated = true;
-                context.env.mutated_ident.push(context.current_module.unwrap().clone());
+
             }
 
 
@@ -1516,27 +1541,25 @@ fn exp_inner(context: &mut Context, sp!(eloc, ne_): N::Exp) -> T::Exp {
             // if not on mutation mode, add the information in context.env for the iteration
             if !flag
             {
+
                 mutation::mutation_workflow::env_insert(context, "IfElse".to_string(), eloc);
             }
 
             // if on mutation mode, then switch the if&else branch
 
-            let nt = if flag&& context.env.flags.current_start == eloc.start
-                && context.env.flags.current_end == eloc.end
-                && context.env.flags.current_file_hash == eloc.file_hash.to_string()
+            let nt = if mutate_condition
             {onf.clone()}else{ont.clone()};
 
-            let nf = if flag&& context.env.flags.current_start == eloc.start
-                && context.env.flags.current_end == eloc.end
-                && context.env.flags.current_file_hash == eloc.file_hash.to_string()
+            let nf = if mutate_condition
             {ont.clone()}else{onf.clone()};
 
-            if  flag&& context.env.flags.current_start == eloc.start
-                && context.env.flags.current_end == eloc.end
-                && context.env.flags.current_file_hash == eloc.file_hash.to_string()
+            if  mutate_condition
             {
             context.env.mutated = true;
             context.env.mutated_ident.push(context.current_module.unwrap().clone());
+            context.env.current_function = context.current_function.clone();
+
+            context.env.current_module = Some(context.current_module.unwrap().value.module.clone());
             }
             let eb = exp(context, nb);
             let bloc = eb.exp.loc;
@@ -1618,6 +1641,7 @@ fn exp_inner(context: &mut Context, sp!(eloc, ne_): N::Exp) -> T::Exp {
         }
         NE::Break => {
             if !flag {
+
                 mutation::mutation_workflow::env_insert(context, "BreakContinue".to_string(), eloc);
             }
             if !context.in_loop() {
@@ -1635,12 +1659,12 @@ fn exp_inner(context: &mut Context, sp!(eloc, ne_): N::Exp) -> T::Exp {
                 }
             };
             context.set_break_type(break_ty);
-            if flag && context.env.flags.current_start == eloc.start
-                && context.env.flags.current_end == eloc.end
-                && context.env.flags.current_file_hash == eloc.file_hash.to_string(){
+            if mutate_condition{
                 return_tuple = (sp(eloc, Type_::Anything), TE::Continue);
                 context.env.mutated = true;
                 context.env.mutated_ident.push(context.current_module.unwrap().clone());
+                context.env.current_function = context.current_function.clone();
+                context.env.current_module = Some(context.current_module.unwrap().value.module.clone());
             }else{
                 return_tuple = (sp(eloc, Type_::Anything), TE::Break);
             }
@@ -1648,6 +1672,7 @@ fn exp_inner(context: &mut Context, sp!(eloc, ne_): N::Exp) -> T::Exp {
         }
         NE::Continue => {
             if !flag {
+
                 mutation::mutation_workflow::env_insert(context, "BreakContinue".to_string(), eloc);
             }
             if !context.in_loop() {
@@ -1657,12 +1682,13 @@ fn exp_inner(context: &mut Context, sp!(eloc, ne_): N::Exp) -> T::Exp {
                     .env
                     .add_diag(diag!(TypeSafety::InvalidLoopControl, (eloc, msg)))
             }
-            if flag&& context.env.flags.current_start == eloc.start
-                && context.env.flags.current_end == eloc.end
-                && context.env.flags.current_file_hash == eloc.file_hash.to_string(){
+            if mutate_condition{
                 return_tuple = (sp(eloc, Type_::Anything), TE::Break);
                 context.env.mutated = true;
                 context.env.mutated_ident.push(context.current_module.unwrap().clone());
+                context.env.current_function = context.current_function.clone();
+
+                context.env.current_module = Some(context.current_module.unwrap().value.module.clone());
             }else{
                 return_tuple = (sp(eloc, Type_::Anything), TE::Continue);
             }
@@ -1693,10 +1719,9 @@ fn exp_inner(context: &mut Context, sp!(eloc, ne_): N::Exp) -> T::Exp {
         }
 
         NE::UnaryExp(uop, nr) => {
-            if !flag && context.env.flags.current_start == eloc.start
-                && context.env.flags.current_end == eloc.end
-                && context.env.flags.current_file_hash == eloc.file_hash.to_string()
+            if insert_condition
             {
+
                 mutation::mutation_workflow::env_insert(context, "Unary".to_string(), eloc);
             }
 
@@ -1714,9 +1739,7 @@ fn exp_inner(context: &mut Context, sp!(eloc, ne_): N::Exp) -> T::Exp {
                     Type_::bool(eloc)
                 }
             };
-            if flag && context.env.flags.current_start == eloc.start
-                && context.env.flags.current_end == eloc.end
-                && context.env.flags.current_file_hash == eloc.file_hash.to_string()
+            if mutate_condition
             {
                 //if mutation is on, return er, else return nr
                 context.env.mutated = true;

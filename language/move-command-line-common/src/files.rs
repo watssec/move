@@ -5,10 +5,20 @@ use anyhow::{anyhow, bail};
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
 use std::{convert::TryInto, path::Path};
-
+use std::str::FromStr;
+use std::num::ParseIntError;
 /// Result of sha256 hash of a file's contents.
 #[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub struct FileHash(pub [u8; 32]);
+
+impl FromStr for FileHash{
+
+    type Err = ParseIntError;
+
+    fn from_str(_s: &str) -> Result<Self, Self::Err> {
+        todo!()
+    }
+}
 
 impl FileHash {
     pub fn new(file_contents: &str) -> Self {
