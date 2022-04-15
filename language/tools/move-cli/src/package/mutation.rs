@@ -242,9 +242,10 @@ pub fn run_move_mutation(
                     println!("error in reading content!{:?}",&e)},
             }
             if error_vec.is_empty() {
+                evolution_info.fin_sig = true;
                 original_evolution_info.push(evolution_info.clone());
                 error_report_file_generation(&env, env_diags_map.clone(), vec_loc.clone());
-                evolution_info.fin_sig = true;
+
             } else {
                 evolution_info.error = error_vec.clone();
                 original_evolution_info.push(evolution_info.clone());
@@ -428,12 +429,15 @@ pub fn run_move_mutation(
 
                     }else{
                         // returns true when new error is discovered
-                        let result1 = reward_check_1(&mut vec, &error_vec, &original_evolution_info,
-                                     &evolution_status, &current_function_name, &current_module_name);
+                        let result1 = reward_check_1( &error_vec, &original_evolution_info,
+                                     &current_function_name, &current_module_name);
 
                         // returns true when old message is overwritten
                         let result2 = reward_check_2(&mut vec, &error_vec,
                                        &original_evolution_info, &evolution_status);
+
+                        println!("result1{:?}",&result1);
+                        println!("result2{:?}",&result2);
                         // if
                         if result1 || result2 {
                             evolution_info.fin_sig = false;
@@ -559,11 +563,13 @@ pub(crate) fn prove(
     Ok(error_vec)
 }
 
+
+// TODO: Check these two functions to see if they return the correct value
 // If this is the first time this error appears in this function
 // If this mutation erases old error
-pub fn reward_check_1(current_vec: &mut Vec<Option<Loc>>,
+pub fn reward_check_1(
     current_error: &Vec<String>, complete_info:&Vec<EvolutionInfo>,
-    complete_status: &BTreeMap<String, Vec<Vec<Option<Loc>>>>,
+
     function_name: &String, module_name: &String) -> bool
 {
     let mut result = false;
@@ -644,6 +650,7 @@ pub fn error_report_file_generation(env: &GlobalEnv, env_diags_map: BTreeMap<Loc
     current_file_path = current_file_path[0..current_file_path.len()-5].to_string();
     current_file_path += &"_".to_string();
     current_file_path += &"mutation.txt".to_string();
+    // create the dir if not exists
     fs::create_dir_all("./mutation_result");
     current_file_path = "./mutation_result/".to_string()+&current_file_path.to_string();
     let mut file = if Path::new(&current_file_path).exists(){
@@ -652,6 +659,7 @@ pub fn error_report_file_generation(env: &GlobalEnv, env_diags_map: BTreeMap<Loc
         OpenOptions::new().write(true).create(true).open(&current_file_path).unwrap()
     };
     write!(file, "Mutation Points {:?}", &loc_vec);
+    write!(file, "Mutation Types {:?}", &env.appendix);
     for wrapped_loc in loc_vec{
         let loc = wrapped_loc.unwrap();
         let diag_str_map = BTreeMap::from([
@@ -668,6 +676,7 @@ pub fn error_report_file_generation(env: &GlobalEnv, env_diags_map: BTreeMap<Loc
         // if there is a mutation pass, write it into the report file
         let source_files = &(*env).files;
         let mut temp_diags = Diagnostics::new();
+        println!("env_diags_map{:?}",&env_diags_map);
         let current_mutation_type = env_diags_map.get(&loc).unwrap().to_owned().to_owned();
         temp_diags.add(diag!(*diag_str_map.get(&current_mutation_type).unwrap(), (loc,"prover passed after mutation")));
 
@@ -804,7 +813,7 @@ pub fn check_fin (current_vec: Vec<Option<Loc>>)
                 }
             }
         }
-    }
+    };
 
 
     // open the info file
