@@ -143,13 +143,7 @@ pub fn expression_mutation(context:&mut Context, op: BinOp ) ->BinOp {
             (1, BinOp_::Sub),
             (2, BinOp_::Div),
             (3, BinOp_::Mul)]);
-    let appendix_message = BTreeMap::from(
-        [(0, String::from("Add")),
-             (1, String::from("Sub")),
-             (2, String::from("Div")),
-             (3, String::from("Mul"))
-        ]
-    );
+
     // filter out the mutation which is the same as the original one, generate new mutation until valid
     while op.value == *dict.get(&mutation_selection).unwrap(){
         mutation_selection = rng.gen_range(0..4);
