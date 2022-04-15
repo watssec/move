@@ -141,11 +141,8 @@ pub fn run_move_mutation(
     init_flag = false;
     let mut cnt = 0;
 
-    let mut mutate_loc_original: Vec<Option<Loc>> = Vec::new();
-
-
     let env_diags_map = env.diags_map;
-
+    let mut mutate_loc_original: Vec<Option<Loc>> = Vec::new();
     for (loc, _result) in env.mutation_counter{
 
         // judge that the loc which is gonna to be pushed into mutate_loc_original is not one from source
@@ -244,10 +241,9 @@ pub fn run_move_mutation(
                 Err(e) => {
                     println!("error in reading content!{:?}",&e)},
             }
-            // TODO: Generate report here
             if error_vec.is_empty() {
                 original_evolution_info.push(evolution_info.clone());
-                error_report_file_generation(&env, vec_loc.clone());
+                error_report_file_generation(&env, env_diags_map.clone(), vec_loc.clone());
                 evolution_info.fin_sig = true;
             } else {
                 evolution_info.error = error_vec.clone();
@@ -427,7 +423,7 @@ pub fn run_move_mutation(
 
                     let error_vec = prove(&options, &env, &targets,i+1)?;
                     if error_vec.is_empty(){
-                        error_report_file_generation(&env, vec.clone());
+                        error_report_file_generation(&env, env_diags_map.clone(), vec.clone());
                         original_evolution_info.push(evolution_info.clone());
 
                     }else{
@@ -638,8 +634,8 @@ pub fn reward_check_2(current_vec: &mut Vec<Option<Loc>>,
 // Used to generate result report under mutation_result
 
 // TODO: transfer this function to generate report for vec<Loc>
-pub fn error_report_file_generation(env: &GlobalEnv, loc_vec: Vec<Option<Loc>>) {
-    let mut root_path = "./mutation_result/".to_string();
+pub fn error_report_file_generation(env: &GlobalEnv, env_diags_map: BTreeMap<Loc, String>, loc_vec: Vec<Option<Loc>>) {
+
     let env_file_hash_map = &(*env).file_hash_map;
     let mut current_file_hash = loc_vec[0].unwrap().file_hash;
     let mut current_file_path = env_file_hash_map.get(&current_file_hash).unwrap().0.clone();
@@ -648,6 +644,7 @@ pub fn error_report_file_generation(env: &GlobalEnv, loc_vec: Vec<Option<Loc>>) 
     current_file_path = current_file_path[0..current_file_path.len()-5].to_string();
     current_file_path += &"_".to_string();
     current_file_path += &"mutation.txt".to_string();
+    fs::create_dir_all("./mutation_result");
     current_file_path = "./mutation_result/".to_string()+&current_file_path.to_string();
     let mut file = if Path::new(&current_file_path).exists(){
         OpenOptions::new().append(true).open(&current_file_path).unwrap()
@@ -670,11 +667,9 @@ pub fn error_report_file_generation(env: &GlobalEnv, loc_vec: Vec<Option<Loc>>) 
         ]);
         // if there is a mutation pass, write it into the report file
         let source_files = &(*env).files;
-        //println!("source_file{:?}",&source_files);
         let mut temp_diags = Diagnostics::new();
-        let env_diags_map = &(*env).diags_map;
-        let current_mutation_type = env_diags_map.get(&loc).unwrap();
-        temp_diags.add(diag!(*diag_str_map.get(current_mutation_type).unwrap(), (loc,"prover passed after mutation")));
+        let current_mutation_type = env_diags_map.get(&loc).unwrap().to_owned().to_owned();
+        temp_diags.add(diag!(*diag_str_map.get(&current_mutation_type).unwrap(), (loc,"prover passed after mutation")));
 
         let loc_result = diagnostics::report_diagnostics_to_buffer(source_files, temp_diags.clone());
         let loc_result_char = String::from_utf8(loc_result).unwrap();
@@ -780,7 +775,8 @@ pub fn normal_set_generation(mut mutation_status: BTreeMap<String, Vec<Vec<Optio
 
 
 // this function returns whether to continue on the current branch or not
-pub fn check_fin(current_vec: Vec<Option<Loc>>) -> bool {
+pub fn check_fin (current_vec: Vec<Option<Loc>>)
+    -> bool {
     let evolution_status_file_path = "evolution_status.json";
     let evolution_info_file_path = "evolution_info.json";
     let mutated_file_path = "mutated_loc.json";
