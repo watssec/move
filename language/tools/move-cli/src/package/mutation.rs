@@ -333,8 +333,7 @@ pub fn run_move_mutation(
         Err(e) =>{},
     }
 
-    let mut round_id = 0;
-    let mut mutation_id = 0;
+
     // Open evolution_info
     let mut evolution_info:Vec<EvolutionInfo> = Vec::new();
     let mut evolution_info_file =
@@ -393,6 +392,8 @@ pub fn run_move_mutation(
                     if vec.len() <i+2{
                         continue
                     }
+
+
                     mutation_id = mutation_id +1;
                     let (mut env, targets) = prepare(config.clone(), path, target_filter, &options, &init_flag, vec.clone())?;
                     env.current_vec = vec.clone();
@@ -400,7 +401,10 @@ pub fn run_move_mutation(
 
                     let current_function_name = env.current_function.unwrap().value().as_str().to_owned();
                     let current_module_name = env.current_module.unwrap().value().as_str().to_owned();
+                    println!("vec{:?}",&vec);
+
                     let current_appendix = env.appendix.clone();
+                    println!("current_appendix{:?}",&current_appendix);
                     let mut evolution_info = EvolutionInfo{
                         module_id: current_module_name.clone(),
                         function_id: current_function_name.clone(),
@@ -432,7 +436,8 @@ pub fn run_move_mutation(
                                      &current_function_name, &current_module_name);
 
                         // returns true when old message is overwritten
-                        let result2 = reward_check_2(&mut vec, &error_vec,
+                        let mut clone_vec = vec.clone();
+                        let result2 = reward_check_2(&mut clone_vec, &error_vec,
                                        &original_evolution_info, &evolution_status);
 
                         println!("result1{:?}",&result1);
@@ -445,6 +450,7 @@ pub fn run_move_mutation(
                         }
 
                         evolution_info.error = error_vec.clone();
+
                         original_evolution_info.push(evolution_info.clone());
                     };
 
@@ -716,7 +722,7 @@ pub fn normal_set_generation(mut mutation_status: BTreeMap<String, Vec<Vec<Optio
     {
 
         // TODO: add feedback in this function
-
+        
         let function_keys:Vec<String> = mutation_status.clone().into_keys().collect();
         // iterate through the functions
         for key in function_keys {
@@ -785,7 +791,6 @@ pub fn normal_set_generation(mut mutation_status: BTreeMap<String, Vec<Vec<Optio
 // this function returns whether to continue on the current branch or not
 pub fn check_fin (current_vec: Vec<Option<Loc>>)
     -> bool {
-    println!("vec{:?}",&current_vec);
     let evolution_status_file_path = "evolution_status.json";
     let evolution_info_file_path = "evolution_info.json";
     let mutated_file_path = "mutated_loc.json";

@@ -219,7 +219,7 @@ pub fn constant_mutation<T: Integer + CheckedSub+ CheckedAdd + std::ops::Add<Out
 
 //env management
 
-pub fn env_insert(context:&mut Context,mutation_type:String,loc:Loc)
+pub fn env_insert(context:&mut Context, mutation_type:String, loc:Loc)
 {
     context.env.diag_map.insert(loc, mutation_type);
     context.env.mutation_counter.insert(loc,false);

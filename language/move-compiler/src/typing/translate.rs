@@ -1558,7 +1558,7 @@ fn exp_inner(context: &mut Context, sp!(eloc, ne_): N::Exp) -> T::Exp {
             context.env.mutated = true;
             context.env.mutated_ident.push(context.current_module.unwrap().clone());
             context.env.current_function = context.current_function.clone();
-
+            context.env.appendix.push(String::from("Switch If Else branch"));
             context.env.current_module = Some(context.current_module.unwrap().value.module.clone());
             }
             let eb = exp(context, nb);
@@ -1665,6 +1665,7 @@ fn exp_inner(context: &mut Context, sp!(eloc, ne_): N::Exp) -> T::Exp {
                 context.env.mutated_ident.push(context.current_module.unwrap().clone());
                 context.env.current_function = context.current_function.clone();
                 context.env.current_module = Some(context.current_module.unwrap().value.module.clone());
+                context.env.appendix.push(String::from("Switch Continue Break branch"));
             }else{
                 return_tuple = (sp(eloc, Type_::Anything), TE::Break);
             }
