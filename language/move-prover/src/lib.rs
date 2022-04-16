@@ -237,7 +237,6 @@ pub fn verify_boogie(
             options: &options.backend,
         };
         unwrap_error_vec = boogie.call_boogie_and_verify_output(&options.output_path, round_counter)?;
-        println!("error vec in verify boogie{:?}",&unwrap_error_vec);
         //unwrap_error_vec = error_vec?;
         if !output_existed && !options.backend.keep_artifacts {
             std::fs::remove_file(&options.output_path).unwrap_or_default();

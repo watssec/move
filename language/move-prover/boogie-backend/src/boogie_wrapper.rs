@@ -237,6 +237,7 @@ impl<'env> BoogieWrapper<'env> {
         let mut error_vec = Vec::new();
         for error in &errors {
             let error_kind = error.kind;
+            println!("self.env.doc_comments{:?}",&self.env.doc_comments);
             let file_id = self.env.doc_comments.get(&error.loc.file_id).unwrap().keys().cloned().collect::<Vec<ByteIndex>>();
             //let file_id = error.loc.file_id;
             let start_pos = error.loc.span.start();

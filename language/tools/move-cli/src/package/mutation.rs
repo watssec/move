@@ -138,7 +138,7 @@ pub fn run_move_mutation(
 
 
     let (mut env, _targets) = prepare(config.clone(), path, target_filter, &options, &init_flag, fake_loc)?;
-    println!("env.doc{:?}",&env.doc_comments);
+
     init_flag = false;
     let mut cnt = 0;
 
@@ -767,16 +767,41 @@ pub fn normal_set_generation(mut mutation_status: BTreeMap<String, Vec<Vec<Optio
                 retain_list.push(true);
             }
 
+            let mut repetition = Vec::new();
+            let mut repetition_set = Vec::new();
             for item_outer in new_vec.clone(){
                 for item_inner in new_vec.clone(){
                     let item_outer_set: HashSet<Option<Loc>> = HashSet::from_iter(item_outer.clone());
                     let item_inner_set: HashSet<Option<Loc>> = HashSet::from_iter(item_inner.clone());
+                    let index_outer = new_vec.iter().position(|x| *x == item_outer).unwrap();
+                    let index_inner = new_vec.iter().position(|x| *x == item_inner).unwrap();
+                    //Set<a,b> and Set<b,a> are still considered as two vecs..
                     if item_inner_set.is_subset(&item_outer_set) && item_inner_set != item_inner_set{
                         let index_outer = new_vec.iter().position(|x| *x == item_outer).unwrap();
                         retain_list[index_outer] = false;
                     }
+
+                    //Two situations -> the same item/ set-wise same item
+                    if  item_inner_set == item_outer_set{
+                        // not the same item
+                        if index_outer != index_inner{
+                            let mut temp_set = HashSet::new();
+                            temp_set.insert(index_inner);
+                            temp_set.insert(index_outer);
+
+                            if !repetition_set.contains(&temp_set){
+                            repetition.push(vec![index_inner,index_outer]);
+                            repetition_set.push(temp_set);
+                            };
+
+                        }
+                    }
                 }
             }
+            for item in repetition{
+                retain_list[item[0]] = false;
+            }
+
             let mut iter = retain_list.iter();
             new_vec.retain(|_| *iter.next().unwrap());
             mutation_status.insert(key.to_string(), new_vec);
