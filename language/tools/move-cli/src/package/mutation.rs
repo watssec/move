@@ -169,8 +169,8 @@ pub fn run_move_mutation(
         // if the loc is in status -> it has already been mutated
 
         let mut loc = wrapped_loc.unwrap();
-        println!("mutation loop loc{:?}", &loc);
-        println!("mutation_type{:?}",&env_diags_map.get(&loc));
+        //println!("mutation loop loc{:?}", &loc);
+        //println!("mutation_type{:?}",&env_diags_map.get(&loc));
         let vec_loc = vec![Some(loc)];
         if evolution_status_vec.contains(&vec_loc) {
             continue
@@ -394,7 +394,6 @@ pub fn run_move_mutation(
                         continue
                     }
                     mutation_id = mutation_id +1;
-                    println!("evolution_id{:?}, mutation_id{:?}, vec{:?}, appendix{:?}",&i+1, &mutation_id, &vec, &env.appendix);
                     let (mut env, targets) = prepare(config.clone(), path, target_filter, &options, &init_flag, vec.clone())?;
                     env.current_vec = vec.clone();
                     env.genesis_flag = false;
@@ -658,8 +657,8 @@ pub fn error_report_file_generation(env: &GlobalEnv, env_diags_map: BTreeMap<Loc
     }else{
         OpenOptions::new().write(true).create(true).open(&current_file_path).unwrap()
     };
-    write!(file, "Mutation Points {:?}", &loc_vec);
-    write!(file, "Mutation Types {:?}", &env.appendix);
+    write!(file, "Mutation Points {:?}\n", &loc_vec);
+    write!(file, "Mutation Types {:?}\n", &env.appendix);
     for wrapped_loc in loc_vec{
         let loc = wrapped_loc.unwrap();
         let diag_str_map = BTreeMap::from([
@@ -676,7 +675,7 @@ pub fn error_report_file_generation(env: &GlobalEnv, env_diags_map: BTreeMap<Loc
         // if there is a mutation pass, write it into the report file
         let source_files = &(*env).files;
         let mut temp_diags = Diagnostics::new();
-        println!("env_diags_map{:?}",&env_diags_map);
+        //println!("env_diags_map{:?}",&env_diags_map);
         let current_mutation_type = env_diags_map.get(&loc).unwrap().to_owned().to_owned();
         temp_diags.add(diag!(*diag_str_map.get(&current_mutation_type).unwrap(), (loc,"prover passed after mutation")));
 
@@ -786,6 +785,7 @@ pub fn normal_set_generation(mut mutation_status: BTreeMap<String, Vec<Vec<Optio
 // this function returns whether to continue on the current branch or not
 pub fn check_fin (current_vec: Vec<Option<Loc>>)
     -> bool {
+    println!("vec{:?}",&current_vec);
     let evolution_status_file_path = "evolution_status.json";
     let evolution_info_file_path = "evolution_info.json";
     let mutated_file_path = "mutated_loc.json";
@@ -806,7 +806,7 @@ pub fn check_fin (current_vec: Vec<Option<Loc>>)
     let mut mutation_id = 0;
     for (function, vec) in evolution_status_content{
         for item in &vec{
-            if vec.len() == current_vec.len(){
+            if item.len() == current_vec.len(){
                 mutation_id = mutation_id +1;
                 if *item == current_vec{
                     break
@@ -834,14 +834,14 @@ pub fn check_fin (current_vec: Vec<Option<Loc>>)
             println!("error in reading content!{:?}", &e)
         },
     };
-    let mut fin_sig = true;
+    let mut fin_sig = false;
     // return the mutation and evolution id of the vec
     for item in evolution_info{
         if item.mutation_id == mutation_id && item.evolution_round == round_id{
             fin_sig = item.fin_sig;
+            break
         }
     };
-
     fin_sig
 
 }
