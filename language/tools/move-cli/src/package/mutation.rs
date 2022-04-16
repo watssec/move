@@ -138,6 +138,7 @@ pub fn run_move_mutation(
 
 
     let (mut env, _targets) = prepare(config.clone(), path, target_filter, &options, &init_flag, fake_loc)?;
+    println!("env.doc{:?}",&env.doc_comments);
     init_flag = false;
     let mut cnt = 0;
 
@@ -396,15 +397,14 @@ pub fn run_move_mutation(
 
                     mutation_id = mutation_id +1;
                     let (mut env, targets) = prepare(config.clone(), path, target_filter, &options, &init_flag, vec.clone())?;
+
                     env.current_vec = vec.clone();
                     env.genesis_flag = false;
 
                     let current_function_name = env.current_function.unwrap().value().as_str().to_owned();
                     let current_module_name = env.current_module.unwrap().value().as_str().to_owned();
-                    println!("vec{:?}",&vec);
 
                     let current_appendix = env.appendix.clone();
-                    println!("current_appendix{:?}",&current_appendix);
                     let mut evolution_info = EvolutionInfo{
                         module_id: current_module_name.clone(),
                         function_id: current_function_name.clone(),
@@ -440,8 +440,6 @@ pub fn run_move_mutation(
                         let result2 = reward_check_2(&mut clone_vec, &error_vec,
                                        &original_evolution_info, &evolution_status);
 
-                        println!("result1{:?}",&result1);
-                        println!("result2{:?}",&result2);
                         // if
                         if result1 || result2 {
                             evolution_info.fin_sig = false;
@@ -722,7 +720,7 @@ pub fn normal_set_generation(mut mutation_status: BTreeMap<String, Vec<Vec<Optio
     {
 
         // TODO: add feedback in this function
-        
+
         let function_keys:Vec<String> = mutation_status.clone().into_keys().collect();
         // iterate through the functions
         for key in function_keys {
@@ -748,7 +746,8 @@ pub fn normal_set_generation(mut mutation_status: BTreeMap<String, Vec<Vec<Optio
                 // step 0.5 create a hashset for mutate_loc_original
                 let mut mutate_loc_original_set = HashSet::new();
                 for item in mutate_loc_original.clone(){
-                    mutate_loc_original_set.insert(Some(item));
+                    if !check_fin(vec![Some(item.clone())]){
+                    mutate_loc_original_set.insert(Some(item));}
                 }
                 // step1: get a sub hashset
 

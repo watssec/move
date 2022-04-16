@@ -456,7 +456,7 @@ pub struct GlobalEnv {
     /// A map of FileId in the Files database to information about documentation comments in a file.
     /// The comments are represented as map from ByteIndex into string, where the index is the
     /// start position of the associated language item in the source.
-    doc_comments: BTreeMap<FileId, BTreeMap<ByteIndex, String>>,
+    pub doc_comments: BTreeMap<FileId, BTreeMap<ByteIndex, String>>,
     /// A mapping from file hash to file name and associated FileId. Though this information is
     /// already in `source_files`, we can't get it out of there so need to book keep here.
     pub file_hash_map: BTreeMap<FileHash, (String, FileId)>,

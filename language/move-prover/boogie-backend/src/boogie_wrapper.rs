@@ -60,7 +60,7 @@ pub struct BoogieOutput {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ErrorJson{
     kind: BoogieErrorKind,
-    file_id: FileId,
+    file_id: Vec<ByteIndex>,
     start: ByteIndex,
     end: ByteIndex,
 }
@@ -232,11 +232,13 @@ impl<'env> BoogieWrapper<'env> {
         let log_file_existed = std::path::Path::new(&boogie_log_file).exists();
         debug!("writing boogie log to {}", boogie_log_file);
         fs::write(&boogie_log_file, &all_output)?;
-
+        // TODO: not safe to use file_id here as it varies in every iteration
+        // change it to file name ()
         let mut error_vec = Vec::new();
         for error in &errors {
             let error_kind = error.kind;
-            let file_id = error.loc.file_id;
+            let file_id = self.env.doc_comments.get(&error.loc.file_id).unwrap().keys().cloned().collect::<Vec<ByteIndex>>();
+            //let file_id = error.loc.file_id;
             let start_pos = error.loc.span.start();
             let end_pos = error.loc.span.end();
             let error_message = error.message.clone();
@@ -258,8 +260,6 @@ impl<'env> BoogieWrapper<'env> {
         if !log_file_existed && !self.options.keep_artifacts {
             std::fs::remove_file(boogie_log_file).unwrap_or_default();
         }
-
-        println!("error_vec in call boogie{:?}",&error_vec);
         Ok(error_vec)
     }
 
