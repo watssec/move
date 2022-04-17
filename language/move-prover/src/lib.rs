@@ -402,7 +402,6 @@ fn run_read_write_set(env: &GlobalEnv, options: &Options, now: Instant) {
     info!("generating read/write set");
     pipeline.run(env, &mut targets);
     read_write_set_analysis::get_read_write_set(env, &targets);
-    println!("generated for {:?}", options.move_sources);
 
     let end = now.elapsed();
     info!("{:.3}s analyzing", (end - start).as_secs_f64());

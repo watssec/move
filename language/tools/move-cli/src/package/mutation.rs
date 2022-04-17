@@ -128,7 +128,7 @@ pub fn run_move_mutation(
     let mut evolution_status_vec:Vec<Vec<Option<Loc>>> = Vec::new();
     for (function, vec) in evolution_status_content{
         for vec_item in vec{
-        evolution_status_vec.push(vec_item.clone());
+            evolution_status_vec.push(vec_item.clone());
         }
     }
 
@@ -183,11 +183,11 @@ pub fn run_move_mutation(
         let mut current_function_name = String::new();
 
         match env.current_function{
-        None => {
-            println!("None;(");continue
-        },
-        Some(function_name) =>
-            current_function_name = function_name.value().as_str().to_owned(),
+            None => {
+                println!("None;(");continue
+            },
+            Some(function_name) =>
+                current_function_name = function_name.value().as_str().to_owned(),
         };
 
         // TODO: solve this counter in prove fun
@@ -259,7 +259,7 @@ pub fn run_move_mutation(
 
             fs::remove_file(&evolution_info_file_path)?;
             let mut evolution_info_file =
-            OpenOptions::new().read(true).write(true).create(true).open(&evolution_info_file_path).unwrap();
+                OpenOptions::new().read(true).write(true).create(true).open(&evolution_info_file_path).unwrap();
             serde_json::to_writer_pretty(&evolution_info_file, &serde_evolution_info)?;
 
             // push mutated item into mutated_vec file
@@ -388,101 +388,102 @@ pub fn run_move_mutation(
 
             let mut mutation_id = 0;
 
-                for mut vec in mutation_vec{
-                    // i = 0 -> round 1 -> vec.len() >=2
-                    if vec.len() <i+2{
-                        continue
-                    }
+            for mut vec in mutation_vec{
+                // i = 0 -> round 1 -> vec.len() >=2
+                if vec.len() <i+2{
+                    continue
+                }
 
 
-                    mutation_id = mutation_id +1;
-                    let (mut env, targets) = prepare(config.clone(), path, target_filter, &options, &init_flag, vec.clone())?;
+                mutation_id = mutation_id +1;
+                let (mut env, targets) = prepare(config.clone(), path, target_filter, &options, &init_flag, vec.clone())?;
 
-                    env.current_vec = vec.clone();
-                    env.genesis_flag = false;
+                env.current_vec = vec.clone();
+                env.genesis_flag = false;
 
-                    let current_function_name = env.current_function.unwrap().value().as_str().to_owned();
-                    let current_module_name = env.current_module.unwrap().value().as_str().to_owned();
+                let current_function_name = env.current_function.unwrap().value().as_str().to_owned();
+                let current_module_name = env.current_module.unwrap().value().as_str().to_owned();
 
-                    let current_appendix = env.appendix.clone();
-                    let mut evolution_info = EvolutionInfo{
-                        module_id: current_module_name.clone(),
-                        function_id: current_function_name.clone(),
-                        evolution_round: i+1,
-                        mutation_id: mutation_id-1,
-                        error: vec![],
-                        appendix: current_appendix,
-                        fin_sig: false,
-                    };
-
-
-                    let mut evolution_info_file =
-                        OpenOptions::new().read(true).write(true).open(&evolution_info_file_path).unwrap();
-                    let mut original_evolution_info = Vec::new();
-                    match serde_json::from_reader(&evolution_info_file)
-                    {
-                        Ok(content) => original_evolution_info = content,
-                        Err(e) =>{},
-                    }
-
-                    let error_vec = prove(&options, &env, &targets,i+1)?;
-                    if error_vec.is_empty(){
-                        error_report_file_generation(&env, env_diags_map.clone(), vec.clone());
-                        original_evolution_info.push(evolution_info.clone());
-
-                    }else{
-                        // returns true when new error is discovered
-                        let result1 = reward_check_1( &error_vec, &original_evolution_info,
-                                     &current_function_name, &current_module_name);
-
-                        // returns true when old message is overwritten
-                        let mut clone_vec = vec.clone();
-                        let result2 = reward_check_2(&mut clone_vec, &error_vec,
-                                       &original_evolution_info, &evolution_status);
-
-                        // if
-                        if result1 || result2 {
-                            evolution_info.fin_sig = false;
-                        }else{
-                            evolution_info.fin_sig = true;
-                        }
-
-                        evolution_info.error = error_vec.clone();
-
-                        original_evolution_info.push(evolution_info.clone());
-                    };
-
-                    fs::remove_file(&evolution_info_file_path);
-                    let evolution_info_file = OpenOptions::new().read(true).write(true).create(true).open(&evolution_info_file_path).unwrap();
-                    let serde_evolution_info = serde_json::to_value(original_evolution_info).unwrap();
-                    serde_json::to_writer_pretty(&evolution_info_file, &serde_evolution_info)?;
+                let current_appendix = env.appendix.clone();
+                let mut evolution_info = EvolutionInfo{
+                    module_id: current_module_name.clone(),
+                    function_id: current_function_name.clone(),
+                    evolution_round: i+1,
+                    mutation_id: mutation_id-1,
+                    error: vec![],
+                    appendix: current_appendix,
+                    fin_sig: false,
                 };
+
+
+                let mut evolution_info_file =
+                    OpenOptions::new().read(true).write(true).open(&evolution_info_file_path).unwrap();
+                let mut original_evolution_info = Vec::new();
+                match serde_json::from_reader(&evolution_info_file)
+                {
+                    Ok(content) => original_evolution_info = content,
+                    Err(e) =>{},
+                }
+
+                let error_vec = prove(&options, &env, &targets,i+1)?;
+                if error_vec.is_empty(){
+                    evolution_info.fin_sig = true;
+                    error_report_file_generation(&env, env_diags_map.clone(), vec.clone());
+                    original_evolution_info.push(evolution_info.clone());
+
+                }else{
+                    // returns true when new error is discovered
+                    let result1 = reward_check_1( &error_vec, &original_evolution_info,
+                                                  &current_function_name, &current_module_name);
+
+                    // returns true when old message is overwritten
+                    let mut clone_vec = vec.clone();
+                    let result2 = reward_check_2(&mut clone_vec, &error_vec,
+                                                 &original_evolution_info, &evolution_status);
+
+                    // if
+                    if result1 || result2 {
+                        evolution_info.fin_sig = false;
+                    }else{
+                        evolution_info.fin_sig = true;
+                    }
+
+                    evolution_info.error = error_vec.clone();
+
+                    original_evolution_info.push(evolution_info.clone());
+                };
+
+                fs::remove_file(&evolution_info_file_path);
+                let evolution_info_file = OpenOptions::new().read(true).write(true).create(true).open(&evolution_info_file_path).unwrap();
+                let serde_evolution_info = serde_json::to_value(original_evolution_info).unwrap();
+                serde_json::to_writer_pretty(&evolution_info_file, &serde_evolution_info)?;
             };
-        pb.inc();
         };
+        pb.inc();
+    };
     pb.finish_print("evolution done");
 
 
     Ok(())
-    }
+}
 
 
 
 
 
-    // tagging function to check whether this generation is rewarded
-    // 1) explores new part of spec to be checked
+// tagging function to check whether this generation is rewarded
+// 1) explores new part of spec to be checked
 
-    // 2) eliminate the error given by the previous generation
-    //  => record the error information to the json chain
+// 2) eliminate the error given by the previous generation
+//  => record the error information to the json chain
 
 
 
-    //println!(
-        //"{:?} mutations, {:.3} seconds",
-        //cnt,
-        //mutation_duration.as_secs_f64()
-    //);
+//println!(
+//"{:?} mutations, {:.3} seconds",
+//cnt,
+//mutation_duration.as_secs_f64()
+//);
 
 
 
@@ -492,7 +493,7 @@ pub fn run_move_mutation(
 
 pub(crate) fn prepare(config: BuildConfig, path: &Path, target_filter: &Option<String>,
                       options: &Options, init_flag: &bool, loc_vec: Vec<Option<Loc>>) ->
-                          Result<(GlobalEnv, FunctionTargetsHolder)> {
+                      Result<(GlobalEnv, FunctionTargetsHolder)> {
 
 
     let mut flags = Flags::empty();
@@ -619,7 +620,7 @@ pub fn reward_check_2(current_vec: &mut Vec<Option<Loc>>,
             }
             cnt = cnt +1
         }
-}
+    }
 
 
     // find evolutioninfo according to round_id, mutation_id
@@ -693,11 +694,11 @@ pub fn error_report_file_generation(env: &GlobalEnv, env_diags_map: BTreeMap<Loc
 
 
 pub fn genesis_set_generation
-    (current_function_name: String,
-    mut mutation_status: BTreeMap<String, Vec<Vec<Option<Loc>>>>,
-    loc:Loc)
-    -> BTreeMap<String, Vec<Vec<Option<Loc>>>>
-    {
+(current_function_name: String,
+ mut mutation_status: BTreeMap<String, Vec<Vec<Option<Loc>>>>,
+ loc:Loc)
+ -> BTreeMap<String, Vec<Vec<Option<Loc>>>>
+{
 
 
     //Genesis round
@@ -711,57 +712,57 @@ pub fn genesis_set_generation
     mutation_status.insert(current_function_name, current_vec);
 
     mutation_status
-    }
+}
 
 
-    // Generate the new evolution of mutation set
+// Generate the new evolution of mutation set
 pub fn normal_set_generation(mut mutation_status: BTreeMap<String, Vec<Vec<Option<Loc>>>>, mutate_loc_original: Vec<Loc>)
-                              -> BTreeMap<String, Vec<Vec<Option<Loc>>>>
-    {
+                             -> BTreeMap<String, Vec<Vec<Option<Loc>>>>
+{
 
-        // TODO: add feedback in this function
+    // TODO: add feedback in this function
 
-        let function_keys:Vec<String> = mutation_status.clone().into_keys().collect();
-        // iterate through the functions
-        for key in function_keys {
-            let str_key = key.as_str();
-            // initialize the new evolution set
-            let mut new_vec: Vec<Vec<Option<Loc>>> = Vec::new();
-            // for every set in the vector
-            // if this vec is labelled FIN skip it
-            let mut fin_flag = false;
-            for vec in mutation_status.get(str_key).unwrap(){
-                fin_flag = check_fin(vec.to_owned());
-                // push vec into new_vec
-                if fin_flag{
-                    continue
-                }
-                new_vec.push(vec.to_owned().clone());
+    let function_keys:Vec<String> = mutation_status.clone().into_keys().collect();
+    // iterate through the functions
+    for key in function_keys {
+        let str_key = key.as_str();
+        // initialize the new evolution set
+        let mut new_vec: Vec<Vec<Option<Loc>>> = Vec::new();
+        // for every set in the vector
+        // if this vec is labelled FIN skip it
 
-                // step0: turn vec into set
-                let mut current_set = HashSet::new();
-                for item in vec{
-                    current_set.insert(*item);
-                }
-                // step 0.5 create a hashset for mutate_loc_original
-                let mut mutate_loc_original_set = HashSet::new();
-                for item in mutate_loc_original.clone(){
-                    if !check_fin(vec![Some(item.clone())]){
-                    mutate_loc_original_set.insert(Some(item));}
-                }
-                // step1: get a sub hashset
-
-                let mut sub_set: HashSet<Option<Loc>> = &mutate_loc_original_set- &current_set ;
-
-                // step2: append one item from the sub hashset into
-                for add in sub_set{
-                    let mut current_vec = vec.clone();
-                    current_vec.push(add);
-                    new_vec.push(current_vec);
-                }
+        for vec in mutation_status.get(str_key).unwrap().clone(){
+            let mut fin_flag = check_fin(vec.to_owned());
+            // push vec into new_vec
+            if fin_flag{
+                continue
             }
+            new_vec.push(vec.to_owned().clone());
+
+            // step0: turn vec into set
+            let mut current_set = HashSet::new();
+            for item in vec.clone(){
+                current_set.insert(item);
+            }
+            // step 0.5 create a hashset for mutate_loc_original
+            let mut mutate_loc_original_set = HashSet::new();
+            for item in mutate_loc_original.clone(){
+                if !check_fin(vec![Some(item.clone())]){
+                    mutate_loc_original_set.insert(Some(item));}
+            }
+            // step1: get a sub hashset
+
+            let mut sub_set: HashSet<Option<Loc>> = &mutate_loc_original_set- &current_set ;
+
+            // step2: append one item from the sub hashset into
+            for add in sub_set{
+                let mut current_vec = vec.clone();
+                current_vec.push(add);
+                new_vec.push(current_vec);
+            }
+
         if !fin_flag{
-        // prune when subset
+            // prune when subset
             let mut retain_list = Vec::new();
             for i in 0..new_vec.len(){
                 retain_list.push(true);
@@ -790,8 +791,8 @@ pub fn normal_set_generation(mut mutation_status: BTreeMap<String, Vec<Vec<Optio
                             temp_set.insert(index_outer);
 
                             if !repetition_set.contains(&temp_set){
-                            repetition.push(vec![index_inner,index_outer]);
-                            repetition_set.push(temp_set);
+                                repetition.push(vec![index_inner,index_outer]);
+                                repetition_set.push(temp_set);
                             };
 
                         }
@@ -804,17 +805,18 @@ pub fn normal_set_generation(mut mutation_status: BTreeMap<String, Vec<Vec<Optio
 
             let mut iter = retain_list.iter();
             new_vec.retain(|_| *iter.next().unwrap());
-            mutation_status.insert(key.to_string(), new_vec);
+            mutation_status.insert(key.to_string(), new_vec.clone());
+            }
         }
-        }
-
-        mutation_status
     }
+
+    mutation_status
+}
 
 
 // this function returns whether to continue on the current branch or not
 pub fn check_fin (current_vec: Vec<Option<Loc>>)
-    -> bool {
+                  -> bool {
     let evolution_status_file_path = "evolution_status.json";
     let evolution_info_file_path = "evolution_info.json";
     let mutated_file_path = "mutated_loc.json";
@@ -882,7 +884,7 @@ pub fn check_status(evolution_vec: Vec<EvolutionInfo>) -> (usize, usize){
 
 
     let round_id = if evolution_vec.is_empty(){
-    0
+        0
     }else{
         let last_item = evolution_vec.last().unwrap();
         last_item.evolution_round
@@ -895,5 +897,4 @@ pub fn check_status(evolution_vec: Vec<EvolutionInfo>) -> (usize, usize){
     };
     (round_id, mutation_id)
 }
-
 
