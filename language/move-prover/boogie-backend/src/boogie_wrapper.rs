@@ -60,7 +60,7 @@ pub struct BoogieOutput {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ErrorJson{
     kind: BoogieErrorKind,
-    file_id: Vec<ByteIndex>,
+    file_id: String,
     start: ByteIndex,
     end: ByteIndex,
 }
@@ -237,7 +237,8 @@ impl<'env> BoogieWrapper<'env> {
         let mut error_vec = Vec::new();
         for error in &errors {
             let error_kind = error.kind;
-            let file_id = self.env.doc_comments.get(&error.loc.file_id).unwrap().keys().cloned().collect::<Vec<ByteIndex>>();
+            let file_id = self.env.get_file_and_location(&error.loc).unwrap().0;
+            //let file_id = self.env.doc_comments.get(&error.loc.file_id).unwrap().keys().cloned().collect::<Vec<ByteIndex>>();
             //let file_id = error.loc.file_id;
             let start_pos = error.loc.span.start();
             let end_pos = error.loc.span.end();

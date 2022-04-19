@@ -170,8 +170,6 @@ pub fn run_move_mutation(
         // if the loc is in status -> it has already been mutated
 
         let mut loc = wrapped_loc.unwrap();
-        //println!("mutation loop loc{:?}", &loc);
-        //println!("mutation_type{:?}",&env_diags_map.get(&loc));
         let vec_loc = vec![Some(loc)];
         if evolution_status_vec.contains(&vec_loc) {
             continue
@@ -344,7 +342,7 @@ pub fn run_move_mutation(
     {
         Ok(content) => {
             evolution_info = content;
-            let (round_id, mutation_id) = check_status(evolution_info,);
+            let (round_id, mutation_id) = check_status(evolution_info);
         },
         Err(e) => {
             println!("error in reading content!{:?}",&e)},
@@ -384,17 +382,15 @@ pub fn run_move_mutation(
 
         // put into a file
 
-        for (function, mutation_vec) in evolution_status.clone(){
+        let mut mutation_id = 0;
 
-            let mut mutation_id = 0;
+        for (function, mutation_vec) in evolution_status.clone(){
 
             for mut vec in mutation_vec{
                 // i = 0 -> round 1 -> vec.len() >=2
                 if vec.len() <i+2{
                     continue
                 }
-
-
                 mutation_id = mutation_id +1;
                 let (mut env, targets) = prepare(config.clone(), path, target_filter, &options, &init_flag, vec.clone())?;
 
@@ -732,7 +728,10 @@ pub fn normal_set_generation(mut mutation_status: BTreeMap<String, Vec<Vec<Optio
         // if this vec is labelled FIN skip it
 
         for vec in mutation_status.get(str_key).unwrap().clone(){
+
             let mut fin_flag = check_fin(vec.to_owned());
+            println!("vec{:?}",&vec);
+            println!("fin_flag{:?}",&fin_flag);
             // push vec into new_vec
             if fin_flag{
                 continue
@@ -819,7 +818,6 @@ pub fn check_fin (current_vec: Vec<Option<Loc>>)
                   -> bool {
     let evolution_status_file_path = "evolution_status.json";
     let evolution_info_file_path = "evolution_info.json";
-    let mutated_file_path = "mutated_loc.json";
     let mut round_id = current_vec.len() - 1;
     // open the status file
     let mut evolution_status_file = if Path::new(&evolution_status_file_path).exists(){
@@ -838,14 +836,14 @@ pub fn check_fin (current_vec: Vec<Option<Loc>>)
     for (function, vec) in evolution_status_content{
         for item in &vec{
             if item.len() == current_vec.len(){
-                mutation_id = mutation_id +1;
+
                 if *item == current_vec{
                     break
                 }
+                mutation_id = mutation_id +1;
             }
         }
     };
-
 
     // open the info file
     let mut evolution_info: Vec<EvolutionInfo> = Vec::new();
