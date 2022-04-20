@@ -1463,6 +1463,7 @@ fn exp_inner(context: &mut Context, sp!(eloc, ne_): N::Exp) -> T::Exp {
                 match v{
                     Value_::Bool(value)=> {
                         return_v = Value_::Bool(!value);
+                        context.env.appendix.push(String::from("Bool True <-> False"));
                     }
                     Value_::U8(value) => {
                         return_v = Value_::U8(mutation::mutation_workflow::constant_mutation(context, value));
@@ -1665,7 +1666,7 @@ fn exp_inner(context: &mut Context, sp!(eloc, ne_): N::Exp) -> T::Exp {
                 context.env.mutated_ident.push(context.current_module.unwrap().clone());
                 context.env.current_function = context.current_function.clone();
                 context.env.current_module = Some(context.current_module.unwrap().value.module.clone());
-                context.env.appendix.push(String::from("Switch Continue Break branch"));
+                context.env.appendix.push(String::from("Switch Break -> Continue branch"));
             }else{
                 return_tuple = (sp(eloc, Type_::Anything), TE::Break);
             }
@@ -1688,7 +1689,7 @@ fn exp_inner(context: &mut Context, sp!(eloc, ne_): N::Exp) -> T::Exp {
                 context.env.mutated = true;
                 context.env.mutated_ident.push(context.current_module.unwrap().clone());
                 context.env.current_function = context.current_function.clone();
-
+                context.env.appendix.push(String::from("Switch Continue -> Break branch"));
                 context.env.current_module = Some(context.current_module.unwrap().value.module.clone());
             }else{
                 return_tuple = (sp(eloc, Type_::Anything), TE::Continue);
@@ -1745,6 +1746,7 @@ fn exp_inner(context: &mut Context, sp!(eloc, ne_): N::Exp) -> T::Exp {
                 //if mutation is on, return er, else return nr
                 context.env.mutated = true;
                 context.env.mutated_ident.push(context.current_module.unwrap().clone());
+                context.env.appendix.push(String::from("Unary"));
                 unary_mutate_flag_closure = true;
             }
             return_tuple = (ty, TE::UnaryExp(uop, er));

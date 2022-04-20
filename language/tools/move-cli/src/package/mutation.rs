@@ -38,6 +38,7 @@ use rustc_serialize::json::Json;
 use std::collections::HashSet;
 use std::iter::FromIterator;
 use move_compiler::shared::Identifier;
+use move_compiler::parser::ast::FunctionName;
 
 //use f::Result;
 // =================================================================================================
@@ -108,6 +109,7 @@ pub fn run_move_mutation(
     let mutated_file_path = "mutated_loc.json";
 
 
+
     let mut evolution_status_file = if Path::new(&evolution_status_file_path).exists(){
         OpenOptions::new().read(true).write(true).open(&evolution_status_file_path).unwrap()
     }else{
@@ -143,6 +145,7 @@ pub fn run_move_mutation(
     let mut cnt = 0;
 
     let env_diags_map = env.diags_map;
+
     let mut mutate_loc_original: Vec<Option<Loc>> = Vec::new();
     for (loc, _result) in env.mutation_counter{
 
@@ -316,9 +319,7 @@ pub fn run_move_mutation(
 
 
 
-    let mut evolution_bar_length = 2;
-    let mut pb = ProgressBar::new(evolution_bar_length.try_into().unwrap());
-    pb.format("╢▌▌░╟");
+
 
     // open the file and get the mutated_vector
 
@@ -371,9 +372,7 @@ pub fn run_move_mutation(
             Err(e) =>{},
         }
 
-
-        evolution_status = normal_set_generation(evolution_status.clone(), mutated_vec.clone());
-
+        evolution_status = normal_set_generation(evolution_status.clone(), mutated_vec.clone(), env.function_map.clone(),i);
         fs::remove_file(&evolution_status_file_path);
 
         let evolution_status_file = OpenOptions::new().read(true).write(true).create(true).open(&evolution_status_file_path).unwrap();
@@ -383,15 +382,19 @@ pub fn run_move_mutation(
         // put into a file
 
         let mut mutation_id = 0;
-
         for (function, mutation_vec) in evolution_status.clone(){
-
-            for mut vec in mutation_vec{
+            let mut evolution_bar_length = mutation_vec.len();
+            let mut pb = ProgressBar::new(evolution_bar_length.try_into().unwrap());
+            pb.format("╢▌▌░╟");
+            for vec in mutation_vec{
                 // i = 0 -> round 1 -> vec.len() >=2
+
                 if vec.len() <i+2{
                     continue
                 }
+
                 mutation_id = mutation_id +1;
+
                 let (mut env, targets) = prepare(config.clone(), path, target_filter, &options, &init_flag, vec.clone())?;
 
                 env.current_vec = vec.clone();
@@ -410,7 +413,6 @@ pub fn run_move_mutation(
                     appendix: current_appendix,
                     fin_sig: false,
                 };
-
 
                 let mut evolution_info_file =
                     OpenOptions::new().read(true).write(true).open(&evolution_info_file_path).unwrap();
@@ -453,11 +455,12 @@ pub fn run_move_mutation(
                 let evolution_info_file = OpenOptions::new().read(true).write(true).create(true).open(&evolution_info_file_path).unwrap();
                 let serde_evolution_info = serde_json::to_value(original_evolution_info).unwrap();
                 serde_json::to_writer_pretty(&evolution_info_file, &serde_evolution_info)?;
+                pb.inc();
             };
         };
-        pb.inc();
+
     };
-    pb.finish_print("evolution done");
+
 
 
     Ok(())
@@ -712,12 +715,10 @@ pub fn genesis_set_generation
 
 
 // Generate the new evolution of mutation set
-pub fn normal_set_generation(mut mutation_status: BTreeMap<String, Vec<Vec<Option<Loc>>>>, mutate_loc_original: Vec<Loc>)
+pub fn normal_set_generation(mut mutation_status: BTreeMap<String, Vec<Vec<Option<Loc>>>>,
+                             mutate_loc_original: Vec<Loc>,function_map: BTreeMap<Loc,Option<FunctionName>>, round_id: usize)
                              -> BTreeMap<String, Vec<Vec<Option<Loc>>>>
 {
-
-    // TODO: add feedback in this function
-
     let function_keys:Vec<String> = mutation_status.clone().into_keys().collect();
     // iterate through the functions
     for key in function_keys {
@@ -730,14 +731,15 @@ pub fn normal_set_generation(mut mutation_status: BTreeMap<String, Vec<Vec<Optio
         for vec in mutation_status.get(str_key).unwrap().clone(){
 
             let mut fin_flag = check_fin(vec.to_owned());
-            println!("vec{:?}",&vec);
-            println!("fin_flag{:?}",&fin_flag);
             // push vec into new_vec
+            new_vec.push(vec.to_owned().clone());
             if fin_flag{
                 continue
             }
-            new_vec.push(vec.to_owned().clone());
-
+            if vec.len() < round_id+1{
+                continue
+            }
+            // this brings repetition
             // step0: turn vec into set
             let mut current_set = HashSet::new();
             for item in vec.clone(){
@@ -746,69 +748,71 @@ pub fn normal_set_generation(mut mutation_status: BTreeMap<String, Vec<Vec<Optio
             // step 0.5 create a hashset for mutate_loc_original
             let mut mutate_loc_original_set = HashSet::new();
             for item in mutate_loc_original.clone(){
+                // add a condition -> under the same function
+                println!("function_map{:?}",&function_map);
+                println!("item{:?}",&item);
+                let item_function_name: String = function_map.get(&item).unwrap().unwrap().value().as_str().to_owned();
+                if item_function_name == key{
                 if !check_fin(vec![Some(item.clone())]){
                     mutate_loc_original_set.insert(Some(item));}
+                }
             }
             // step1: get a sub hashset
 
             let mut sub_set: HashSet<Option<Loc>> = &mutate_loc_original_set- &current_set ;
-
+            println!("sub_set_len{:?}",&sub_set.len());
             // step2: append one item from the sub hashset into
             for add in sub_set{
                 let mut current_vec = vec.clone();
                 current_vec.push(add);
                 new_vec.push(current_vec);
             }
+        }
 
-        if !fin_flag{
-            // prune when subset
-            let mut retain_list = Vec::new();
-            for i in 0..new_vec.len(){
-                retain_list.push(true);
-            }
+        // prune when subset
+        let mut retain_list = Vec::new();
+        for i in 0..new_vec.len(){
+            retain_list.push(true);
+        }
 
-            let mut repetition = Vec::new();
-            let mut repetition_set = Vec::new();
-            for item_outer in new_vec.clone(){
-                for item_inner in new_vec.clone(){
-                    let item_outer_set: HashSet<Option<Loc>> = HashSet::from_iter(item_outer.clone());
-                    let item_inner_set: HashSet<Option<Loc>> = HashSet::from_iter(item_inner.clone());
+        let mut repetition = Vec::new();
+        let mut repetition_set = Vec::new();
+        for item_outer in new_vec.clone(){
+            for item_inner in new_vec.clone(){
+                let item_outer_set: HashSet<Option<Loc>> = HashSet::from_iter(item_outer.clone());
+                let item_inner_set: HashSet<Option<Loc>> = HashSet::from_iter(item_inner.clone());
+                let index_outer = new_vec.iter().position(|x| *x == item_outer).unwrap();
+                let index_inner = new_vec.iter().position(|x| *x == item_inner).unwrap();
+                //Set<a,b> and Set<b,a> are still considered as two vecs..
+                if item_inner_set.is_subset(&item_outer_set) && item_inner_set != item_inner_set{
                     let index_outer = new_vec.iter().position(|x| *x == item_outer).unwrap();
-                    let index_inner = new_vec.iter().position(|x| *x == item_inner).unwrap();
-                    //Set<a,b> and Set<b,a> are still considered as two vecs..
-                    if item_inner_set.is_subset(&item_outer_set) && item_inner_set != item_inner_set{
-                        let index_outer = new_vec.iter().position(|x| *x == item_outer).unwrap();
-                        retain_list[index_outer] = false;
-                    }
+                    retain_list[index_outer] = false;
+                }
 
-                    //Two situations -> the same item/ set-wise same item
-                    if  item_inner_set == item_outer_set{
-                        // not the same item
-                        if index_outer != index_inner{
-                            let mut temp_set = HashSet::new();
-                            temp_set.insert(index_inner);
-                            temp_set.insert(index_outer);
+                //Two situations -> the same item/ set-wise same item
+                if  item_inner_set == item_outer_set{
+                    // not the same item
+                    if index_outer != index_inner{
+                        let mut temp_set = HashSet::new();
+                        temp_set.insert(index_inner);
+                        temp_set.insert(index_outer);
 
-                            if !repetition_set.contains(&temp_set){
-                                repetition.push(vec![index_inner,index_outer]);
-                                repetition_set.push(temp_set);
-                            };
+                        if !repetition_set.contains(&temp_set){
+                            repetition.push(vec![index_inner,index_outer]);
+                            repetition_set.push(temp_set);
+                        };
 
-                        }
                     }
                 }
             }
-            for item in repetition{
-                retain_list[item[0]] = false;
-            }
-
-            let mut iter = retain_list.iter();
-            new_vec.retain(|_| *iter.next().unwrap());
-            mutation_status.insert(key.to_string(), new_vec.clone());
-            }
         }
+        for item in repetition{
+            retain_list[item[0]] = false;
+        }
+        let mut iter = retain_list.iter();
+        new_vec.retain(|_| *iter.next().unwrap());
+        mutation_status.insert(key.to_string(), new_vec.clone());
     }
-
     mutation_status
 }
 
