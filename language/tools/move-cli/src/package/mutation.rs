@@ -183,18 +183,48 @@ pub fn run_move_mutation(
         env.genesis_flag = true;
         let mut current_function_name = String::new();
 
-        match env.current_function{
+        match env.current_function {
             None => {
-                println!("None;(");continue
+                println!("None;(");
+                continue
             },
             Some(function_name) =>
                 current_function_name = function_name.value().as_str().to_owned(),
         };
 
         // TODO: solve this counter in prove fun
-        let genesis_round_counter: usize = 0;
-        let error_vec = prove(&options, &env, &targets, genesis_round_counter)?;
+
+
         if env.mutated {
+            // push mutated item into mutated_vec file
+            // Some locs are filtered as some are not mutated
+            // Some are not within a function
+
+            // first read file
+            let mut mutated_vec = Vec::new();
+            let mut mutated_loc_file = if Path::new(&mutated_file_path).exists() {
+                OpenOptions::new().read(true).write(true).open(&mutated_file_path).unwrap()
+            } else {
+                OpenOptions::new().read(true).write(true).append(false).create(true).open(&mutated_file_path).unwrap()
+            };
+
+            match serde_json::from_reader(&mutated_loc_file)
+            {
+                Ok(content) => {
+                    mutated_vec = content;
+                },
+                // Error means this file has not been created yet, so we don't need to do anything
+                // as the vec has already been initialized
+                Err(e) => {},
+            }
+            // then push the current loc into the vec
+            mutated_vec.push(loc);
+            // then write the current vec into the file
+            fs::remove_file(&mutated_file_path);
+            let mutated_loc_file = OpenOptions::new().read(true).write(true).create(true).open(&mutated_file_path).unwrap();
+
+            let serde_mutated_loc = serde_json::to_value(mutated_vec).unwrap();
+            serde_json::to_writer_pretty(&mutated_loc_file, &serde_mutated_loc)?;
 
             let current_function_name = env.current_function.unwrap().value().as_str().to_owned();
 
@@ -210,97 +240,94 @@ pub fn run_move_mutation(
                 OpenOptions::new().read(true).write(true).create(true).open(&evolution_status_file_path).unwrap();
 
             serde_json::to_writer_pretty(&evolution_status_file, &pretty_genesis_evolution_status)?;
-
-            let current_function_name = env.current_function.unwrap().value().as_str().to_owned();
-            let current_module_name = env.current_module.unwrap().value().as_str().to_owned();
-            let current_appendix = env.appendix.clone();
-
-            let mut evolution_info = EvolutionInfo {
-                function_id: current_function_name,
-                module_id: current_module_name,
-                evolution_round: 0,
-                mutation_id: mutation_id,
-                error: vec![],
-                appendix: current_appendix,
-                fin_sig: false,
-            };
-
-            mutation_id = mutation_id + 1;
-
-            // read the serde vec and then rewrite it when it's not empty (this should be a vector)
-            let mut original_evolution_info:Vec<EvolutionInfo> = Vec::new();
-
-            let mut evolution_info_file = if Path::new(&evolution_info_file_path).exists(){
-                OpenOptions::new().read(true).write(true).open(&evolution_info_file_path).unwrap()
-            }else{
-                OpenOptions::new().read(true).write(true).create(true).open(&evolution_info_file_path).unwrap()
-            };
-            let reader_content=  serde_json::from_reader(&evolution_info_file);
-            match reader_content
-            {
-                Ok(content) => {
-                    original_evolution_info = content;},
-                Err(e) => {
-                    println!("error in reading content!{:?}",&e)},
-            }
-            if error_vec.is_empty() {
-                evolution_info.fin_sig = true;
-                original_evolution_info.push(evolution_info.clone());
-                error_report_file_generation(&env, env_diags_map.clone(), vec_loc.clone());
-
-            } else {
-                evolution_info.error = error_vec.clone();
-                original_evolution_info.push(evolution_info.clone());
-            }
-
-            // update the info into the evolution info file
-            let serde_evolution_info = serde_json::to_value(original_evolution_info).unwrap();
-
-            // delete the evolution info file first before renewing it
-
-            fs::remove_file(&evolution_info_file_path)?;
-            let mut evolution_info_file =
-                OpenOptions::new().read(true).write(true).create(true).open(&evolution_info_file_path).unwrap();
-            serde_json::to_writer_pretty(&evolution_info_file, &serde_evolution_info)?;
-
-            // push mutated item into mutated_vec file
-            // Some locs are filtered as some are not mutated
-            // Some are not within a function
-
-            // first read file
-            let mut mutated_vec = Vec::new();
-            let mut mutated_loc_file = if Path::new(&mutated_file_path).exists(){
-                OpenOptions::new().read(true).write(true).open(&mutated_file_path).unwrap()
-            }else{
-                OpenOptions::new().read(true).write(true).append(false).create(true).open(&mutated_file_path).unwrap()
-            };
-
-            match serde_json::from_reader(&mutated_loc_file)
-            {
-                Ok(content) => {
-
-                    mutated_vec = content;},
-                // Error means this file has not been created yet, so we don't need to do anything
-                // as the vec has already been initialized
-                Err(e) =>{},
-            }
-            // then push the current loc into the vec
-            mutated_vec.push(loc);
-            // then write the current vec into the file
-            fs::remove_file(&mutated_file_path);
-            let mutated_loc_file = OpenOptions::new().read(true).write(true).create(true).open(&mutated_file_path).unwrap();
-
-            let serde_mutated_loc = serde_json::to_value(mutated_vec).unwrap();
-            serde_json::to_writer_pretty(&mutated_loc_file, &serde_mutated_loc)?;
         }
+        pb.inc();
+    }
+    // Open the status file and get the keys
+    let mut evolution_status_file = if Path::new(&evolution_status_file_path).exists(){
+        OpenOptions::new().read(true).write(true).open(&evolution_status_file_path).unwrap()
+    }else{
+        OpenOptions::new().read(true).write(true).append(false).create(true).open(&evolution_status_file_path).unwrap()
+    };
+    let mut evolution_status: BTreeMap<String, Vec<Vec<Option<Loc>>>> = BTreeMap::new();
+
+    match serde_json::from_reader(&evolution_status_file)
+    {
+        Ok(content) => {
+            evolution_status = content},
+        Err(e) =>{},
+    }
+    let evolution_status_keys:Vec<String> = evolution_status.clone().into_keys().collect();
+    let mut bar_length = evolution_status_keys.len();
+    let mut pb = ProgressBar::new(bar_length.try_into().unwrap());
+    pb.format("╢▌▌░╟");
+    for key in evolution_status_keys {
+        let vec_vec_loc = evolution_status.get(&key).unwrap();
+        for vec_loc in vec_vec_loc.clone(){
+
+        let (mut env, targets) = prepare(config.clone(), path, target_filter, &options, &init_flag, vec_loc.clone())?;
+        let current_function_name = env.current_function.unwrap().value().as_str().to_owned();
+        let current_module_name = env.current_module.unwrap().value().as_str().to_owned();
+        let current_appendix = env.appendix.clone();
+
+        let mut evolution_info = EvolutionInfo {
+            function_id: current_function_name,
+            module_id: current_module_name,
+            evolution_round: 0,
+            mutation_id: mutation_id,
+            error: vec![],
+            appendix: current_appendix,
+            fin_sig: false,
+        };
+
+        mutation_id = mutation_id + 1;
+        let genesis_round_counter: usize = 0;
+        // read the serde vec and then rewrite it when it's not empty (this should be a vector)
+        let mut original_evolution_info: Vec<EvolutionInfo> = Vec::new();
+        let error_vec = prove(&options, &env, &targets, genesis_round_counter)?;
+        let mut evolution_info_file = if Path::new(&evolution_info_file_path).exists() {
+            OpenOptions::new().read(true).write(true).open(&evolution_info_file_path).unwrap()
+        } else {
+            OpenOptions::new().read(true).write(true).create(true).open(&evolution_info_file_path).unwrap()
+        };
+        let reader_content = serde_json::from_reader(&evolution_info_file);
+        match reader_content
+        {
+            Ok(content) => {
+                original_evolution_info = content;
+            },
+            Err(e) => {
+                println!("error in reading content!{:?}", &e)
+            },
+        }
+        if error_vec.is_empty() {
+            evolution_info.fin_sig = true;
+            original_evolution_info.push(evolution_info.clone());
+            error_report_file_generation(&env, env_diags_map.clone(), vec_loc.clone());
+        } else {
+            evolution_info.error = error_vec.clone();
+            original_evolution_info.push(evolution_info.clone());
+        }
+
+        // update the info into the evolution info file
+        let serde_evolution_info = serde_json::to_value(original_evolution_info).unwrap();
+
+        // delete the evolution info file first before renewing it
+
+        fs::remove_file(&evolution_info_file_path)?;
+        let mut evolution_info_file =
+            OpenOptions::new().read(true).write(true).create(true).open(&evolution_info_file_path).unwrap();
+        serde_json::to_writer_pretty(&evolution_info_file, &serde_evolution_info)?;
+        }
+        pb.inc();
+    }
 
 
         // if the mutated result passed the prover
         // 1) -> label it as passed
         // 2) -> record it into files when necessary
 
-        pb.inc();
-    };
+
 
 
     pb.finish_print("Genesis iteration done");
@@ -719,9 +746,12 @@ pub fn normal_set_generation(mut mutation_status: BTreeMap<String, Vec<Vec<Optio
                              mutate_loc_original: Vec<Loc>,function_map: BTreeMap<Loc,Option<FunctionName>>, round_id: usize)
                              -> BTreeMap<String, Vec<Vec<Option<Loc>>>>
 {
+
     let function_keys:Vec<String> = mutation_status.clone().into_keys().collect();
     // iterate through the functions
+
     for key in function_keys {
+        println!("function_keys{:?}",&key);
         let str_key = key.as_str();
         // initialize the new evolution set
         let mut new_vec: Vec<Vec<Option<Loc>>> = Vec::new();
@@ -731,6 +761,7 @@ pub fn normal_set_generation(mut mutation_status: BTreeMap<String, Vec<Vec<Optio
         for vec in mutation_status.get(str_key).unwrap().clone(){
 
             let mut fin_flag = check_fin(vec.to_owned());
+            println!("fin_flag{:?}",&fin_flag);
             // push vec into new_vec
             new_vec.push(vec.to_owned().clone());
             if fin_flag{
@@ -739,6 +770,7 @@ pub fn normal_set_generation(mut mutation_status: BTreeMap<String, Vec<Vec<Optio
             if vec.len() < round_id+1{
                 continue
             }
+            println!("vec{:?}",&vec);
             // this brings repetition
             // step0: turn vec into set
             let mut current_set = HashSet::new();
@@ -837,6 +869,8 @@ pub fn check_fin (current_vec: Vec<Option<Loc>>)
         Err(e) =>{},
     }
     let mut mutation_id = 0;
+    println!("current_vec{:?}\n",&current_vec);
+    println!("evolution_status_content{:?}",&evolution_status_content);
     for (function, vec) in evolution_status_content{
         for item in &vec{
             if item.len() == current_vec.len(){
@@ -867,6 +901,7 @@ pub fn check_fin (current_vec: Vec<Option<Loc>>)
             println!("error in reading content!{:?}", &e)
         },
     };
+    println!("mutation_id{:?}, round_id{:?}",&mutation_id, &round_id);
     let mut fin_sig = false;
     // return the mutation and evolution id of the vec
     for item in evolution_info{
