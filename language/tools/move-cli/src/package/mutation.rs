@@ -361,22 +361,6 @@ pub fn run_move_mutation(
     }
 
 
-    // Open evolution_info
-    let mut evolution_info:Vec<EvolutionInfo> = Vec::new();
-    let mut evolution_info_file =
-        OpenOptions::new().read(true).write(true).open(&evolution_info_file_path).unwrap();
-    let reader_content=  serde_json::from_reader(&evolution_info_file);
-    match reader_content
-    {
-        Ok(content) => {
-            evolution_info = content;
-            let (round_id, mutation_id) = check_status(evolution_info);
-        },
-        Err(e) => {
-            println!("error in reading content!{:?}",&e)},
-    }
-
-
 
 
     for i in 0..2{
@@ -400,6 +384,7 @@ pub fn run_move_mutation(
         }
 
         evolution_status = normal_set_generation(evolution_status.clone(), mutated_vec.clone(), env.function_map.clone(),i);
+
         fs::remove_file(&evolution_status_file_path);
 
         let evolution_status_file = OpenOptions::new().read(true).write(true).create(true).open(&evolution_status_file_path).unwrap();
@@ -416,7 +401,7 @@ pub fn run_move_mutation(
             for vec in mutation_vec{
                 // i = 0 -> round 1 -> vec.len() >=2
 
-                if vec.len() <i+2{
+                if vec.len() !=i+2{
                     continue
                 }
 
@@ -743,7 +728,7 @@ pub fn genesis_set_generation
 
 // Generate the new evolution of mutation set
 pub fn normal_set_generation(mut mutation_status: BTreeMap<String, Vec<Vec<Option<Loc>>>>,
-                             mutate_loc_original: Vec<Loc>,function_map: BTreeMap<Loc,Option<FunctionName>>, round_id: usize)
+                             mutate_loc_original: Vec<Loc>, function_map: BTreeMap<Loc,Option<FunctionName>>, round_id: usize)
                              -> BTreeMap<String, Vec<Vec<Option<Loc>>>>
 {
 
@@ -751,17 +736,18 @@ pub fn normal_set_generation(mut mutation_status: BTreeMap<String, Vec<Vec<Optio
     // iterate through the functions
 
     for key in function_keys {
-        println!("function_keys{:?}",&key);
+
         let str_key = key.as_str();
         // initialize the new evolution set
         let mut new_vec: Vec<Vec<Option<Loc>>> = Vec::new();
         // for every set in the vector
         // if this vec is labelled FIN skip it
-
+        // TODO: If 3rd+ evolution need to be supported, this continue condition
+        // should be changed to !=
         for vec in mutation_status.get(str_key).unwrap().clone(){
-
+            // check here
             let mut fin_flag = check_fin(vec.to_owned());
-            println!("fin_flag{:?}",&fin_flag);
+
             // push vec into new_vec
             new_vec.push(vec.to_owned().clone());
             if fin_flag{
@@ -770,7 +756,7 @@ pub fn normal_set_generation(mut mutation_status: BTreeMap<String, Vec<Vec<Optio
             if vec.len() < round_id+1{
                 continue
             }
-            println!("vec{:?}",&vec);
+
             // this brings repetition
             // step0: turn vec into set
             let mut current_set = HashSet::new();
@@ -781,18 +767,18 @@ pub fn normal_set_generation(mut mutation_status: BTreeMap<String, Vec<Vec<Optio
             let mut mutate_loc_original_set = HashSet::new();
             for item in mutate_loc_original.clone(){
                 // add a condition -> under the same function
-                println!("function_map{:?}",&function_map);
-                println!("item{:?}",&item);
+
                 let item_function_name: String = function_map.get(&item).unwrap().unwrap().value().as_str().to_owned();
                 if item_function_name == key{
                 if !check_fin(vec![Some(item.clone())]){
-                    mutate_loc_original_set.insert(Some(item));}
+                    mutate_loc_original_set.insert(Some(item));
+                }
                 }
             }
             // step1: get a sub hashset
 
             let mut sub_set: HashSet<Option<Loc>> = &mutate_loc_original_set- &current_set ;
-            println!("sub_set_len{:?}",&sub_set.len());
+
             // step2: append one item from the sub hashset into
             for add in sub_set{
                 let mut current_vec = vec.clone();
@@ -852,6 +838,7 @@ pub fn normal_set_generation(mut mutation_status: BTreeMap<String, Vec<Vec<Optio
 // this function returns whether to continue on the current branch or not
 pub fn check_fin (current_vec: Vec<Option<Loc>>)
                   -> bool {
+
     let evolution_status_file_path = "evolution_status.json";
     let evolution_info_file_path = "evolution_info.json";
     let mut round_id = current_vec.len() - 1;
@@ -869,13 +856,13 @@ pub fn check_fin (current_vec: Vec<Option<Loc>>)
         Err(e) =>{},
     }
     let mut mutation_id = 0;
-    println!("current_vec{:?}\n",&current_vec);
-    println!("evolution_status_content{:?}",&evolution_status_content);
+    let mut found_flag = false;
     for (function, vec) in evolution_status_content{
+        if found_flag{break}
         for item in &vec{
             if item.len() == current_vec.len(){
-
                 if *item == current_vec{
+                    found_flag =true;
                     break
                 }
                 mutation_id = mutation_id +1;
@@ -901,7 +888,6 @@ pub fn check_fin (current_vec: Vec<Option<Loc>>)
             println!("error in reading content!{:?}", &e)
         },
     };
-    println!("mutation_id{:?}, round_id{:?}",&mutation_id, &round_id);
     let mut fin_sig = false;
     // return the mutation and evolution id of the vec
     for item in evolution_info{
