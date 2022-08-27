@@ -33,6 +33,7 @@ use move_prover::cli::Options;
 use std::fs::File;
 use std::io::copy;
 use std::io::stdout;
+use std::time::{Duration, SystemTime};
 extern crate rustc_serialize;
 use rustc_serialize::json::Json;
 use std::collections::HashSet;
@@ -45,7 +46,6 @@ use move_compiler::parser::ast::FunctionName;
 // Running the mutation as a package command
 
 
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EvolutionInfo{
     function_id: String,
@@ -55,6 +55,7 @@ pub struct EvolutionInfo{
     error: Vec<String>,
     appendix: Vec<String>,
     fin_sig: bool,
+    timestamp: Instant,
 }
 
 pub fn run_move_mutation(
@@ -97,7 +98,7 @@ pub fn run_move_mutation(
         );
     }
 
-    let now = Instant::now();
+
     let mut init_flag = true;
     let fake_loc =vec!(None);
 
@@ -270,6 +271,8 @@ pub fn run_move_mutation(
         let current_module_name = env.current_module.unwrap().value().as_str().to_owned();
         let current_appendix = env.appendix.clone();
 
+        let now = Instant::now();
+
         let mut evolution_info = EvolutionInfo {
             function_id: current_function_name,
             module_id: current_module_name,
@@ -278,6 +281,7 @@ pub fn run_move_mutation(
             error: vec![],
             appendix: current_appendix,
             fin_sig: false,
+            timestamp: now
         };
 
         mutation_id = mutation_id + 1;
@@ -697,6 +701,7 @@ pub fn error_report_file_generation(env: &GlobalEnv, env_diags_map: BTreeMap<Loc
 
         let loc_result = diagnostics::report_diagnostics_to_buffer(source_files, temp_diags.clone());
         let loc_result_char = String::from_utf8(loc_result).unwrap();
+
         write!(file, "{}", &loc_result_char);
 
     }
