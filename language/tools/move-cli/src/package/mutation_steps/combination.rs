@@ -5,17 +5,29 @@ use move_compiler::shared::Identifier;
 use move_ir_types::location::*;
 use std::collections::HashSet;
 use std::collections::{BTreeMap, HashMap};
+use std::convert::TryInto;
 use std::fs::{self, OpenOptions};
 use std::iter::FromIterator;
 use std::path::Path;
+use pbr::ProgressBar;
 
 pub fn run_normal_set_generation() -> anyhow::Result<()> {
     for i in 0..evolution_round {
-        normal_set_generation(i);
+        let evolution_status = normal_set_generation(i);
+        fs::remove_file(&evolution_status_file_path);
+        let mut evolution_status_file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(&evolution_status_file_path)
+            .unwrap();
+        let pretty_evolution_status = serde_json::to_value(&evolution_status).unwrap();
+        serde_json::to_writer_pretty(&evolution_status_file, &pretty_evolution_status)?;
     }
     Ok(())
 }
-pub fn normal_set_generation(round_id: usize) -> anyhow::Result<()> {
+pub fn normal_set_generation(round_id: usize)
+    -> BTreeMap<String, Vec<Vec<Option<Loc>>>> {
     let mut mutated_loc_file = if Path::new(&mutated_file_path).exists() {
         OpenOptions::new()
             .read(true)
@@ -75,16 +87,43 @@ pub fn normal_set_generation(round_id: usize) -> anyhow::Result<()> {
             .open(&env_function_map_file_path)
             .unwrap()
     };
+    let mut env_function_map_keys_file = if Path::new(&env_function_map_keys_file_path).exists() {
+        OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&env_function_map_keys_file_path)
+            .unwrap()
+    } else {
+        OpenOptions::new()
+            .read(true)
+            .write(true)
+            .append(false)
+            .create(true)
+            .open(&env_function_map_keys_file_path)
+            .unwrap()
+    };
     let mut function_map: BTreeMap<Loc, Option<FunctionName>> = BTreeMap::new();
-
+    let mut function_map_value: Vec<Option<FunctionName>> = Vec::new();
     match serde_json::from_reader(&env_function_map_file) {
-        Ok(content) => function_map = content,
+        Ok(content) => function_map_value = content,
         Err(e) => {}
+    }
+    let mut function_map_keys: Vec<Loc> = Vec::new();
+    match serde_json::from_reader(&env_function_map_keys_file) {
+        Ok(content) => function_map_keys = content,
+        Err(e) => {}
+    }
+    let mut cnt = 0;
+    for i in function_map_keys{
+        function_map.insert(i, function_map_value[cnt]);
+        cnt = cnt + 1;
     }
 
     let function_keys: Vec<String> = evolution_status.clone().into_keys().collect();
     // iterate through the functions
-
+    let mut bar_length = function_keys.len();
+    let mut pb = ProgressBar::new(bar_length.try_into().unwrap());
+    pb.format("╢▌▌░╟");
     for key in function_keys {
         let str_key = key.as_str();
         // initialize the new evolution set
@@ -116,7 +155,6 @@ pub fn normal_set_generation(round_id: usize) -> anyhow::Result<()> {
             let mut mutate_loc_original_set = HashSet::new();
             for item in mutate_loc_original.clone() {
                 // add a condition -> under the same function
-
                 let item_function_name: String = function_map
                     .get(&item)
                     .unwrap()
@@ -184,16 +222,7 @@ pub fn normal_set_generation(round_id: usize) -> anyhow::Result<()> {
         let mut iter = retain_list.iter();
         new_vec.retain(|_| *iter.next().unwrap());
         evolution_status.insert(key.to_string(), new_vec.clone());
+        pb.inc();
     }
-
-    fs::remove_file(&evolution_status_file_path);
-    let mut evolution_status_file = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .open(&evolution_status_file_path)
-        .unwrap();
-    let pretty_evolution_status = serde_json::to_value(&evolution_status).unwrap();
-    serde_json::to_writer_pretty(&evolution_status_file, &pretty_evolution_status)?;
-    Ok(())
+    evolution_status
 }

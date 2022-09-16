@@ -205,8 +205,10 @@ pub fn run_mutation_init(
     }
 
     let mut diags_vec: Vec<String> = Vec::new();
+    let mut keys_diags_vec: Vec<Loc> = Vec::new();
     for (loc, diags) in env_diags_map {
         diags_vec.push(diags);
+        keys_diags_vec.push(loc);
     }
     let mut env_diags_map_file = OpenOptions::new()
         .read(true)
@@ -216,6 +218,15 @@ pub fn run_mutation_init(
         .unwrap();
     let pretty_env_diags_map = serde_json::to_value(&diags_vec).unwrap();
     serde_json::to_writer_pretty(&env_diags_map_file, &pretty_env_diags_map)?;
+
+    let mut env_diags_map_keys_file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(&env_diags_map_keys_file_path)
+        .unwrap();
+    let pretty_env_diags_map_keys = serde_json::to_value(&keys_diags_vec).unwrap();
+    serde_json::to_writer_pretty(&env_diags_map_keys_file, &pretty_env_diags_map_keys)?;
 
     let mut function_vec: Vec<Option<FunctionName>> = Vec::new();
     for (loc, function) in env_function_map {

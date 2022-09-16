@@ -19,30 +19,35 @@ pub fn run_mutation_genesis(
     target_filter: &Option<String>,
     options: &Options,
 ) -> anyhow::Result<()> {
+    println!("options{:?}", &options);
     let mut init_flag = false;
 
-    let mut evolution_status: BTreeMap<String, Vec<Vec<Option<Loc>>>> = write_create_if_not_exists(&evolution_status_file_path)?;
-
+    let mut evolution_status: BTreeMap<String, Vec<Vec<Option<Loc>>>> =
+        write_create_if_not_exists(&evolution_status_file_path)?;
 
     let mut env_diags_map: BTreeMap<Loc, String> = BTreeMap::new();
-    let mut diags_vec: Vec<String> =read_only_return_json_file(&env_diags_map_file_path)?;
+    let mut diags_vec: Vec<String> = read_only_return_json_file(&env_diags_map_file_path)?;
 
-    let mut mutate_loc_original: Vec<Loc> = read_only_return_json_file(&mutate_loc_original_file_path)?;
+    let mut mutate_loc_original: Vec<Loc> =
+        read_only_return_json_file(&mutate_loc_original_file_path)?;
 
     let mut cnt = 0;
-    for loc in mutate_loc_original {
+
+    let mut env_diags_keys: Vec<Loc> = read_only_return_json_file(&env_diags_map_keys_file_path)?;
+    for loc in env_diags_keys {
         env_diags_map.insert(loc.clone(), diags_vec[cnt].clone());
         cnt = cnt + 1;
     }
-
+    let mut mutation_id = 0;
     let evolution_status_keys: Vec<String> = evolution_status.clone().into_keys().collect();
     let mut bar_length = evolution_status_keys.len();
     let mut pb = ProgressBar::new(bar_length.try_into().unwrap());
     pb.format("╢▌▌░╟");
+    println!("evolution_status_keys{:?}", &evolution_status_keys);
     for key in evolution_status_keys {
-        println!("key{:?}",&key);
+        println!("key{:?}", &key);
         let vec_vec_loc = evolution_status.get(&key).unwrap();
-
+        println!("vec_vec_loc{:?}", &vec_vec_loc);
         for vec_loc in vec_vec_loc.clone() {
             let (mut env, targets) = prepare(
                 config.clone(),
@@ -52,13 +57,21 @@ pub fn run_mutation_genesis(
                 &init_flag,
                 vec_loc.clone(),
             )?;
-            let error_vec = prove(&options, &env, &targets, genesis_round_counter)?;
             let current_function_name = env.current_function.unwrap().value().as_str().to_owned();
             let current_module_name = env.current_module.unwrap().value().as_str().to_owned();
             let current_appendix = env.appendix.clone();
+            println!("current_appendix{:?}", &current_appendix);
+            let genesis_round_counter: usize = 0;
 
+            let error_vec = prove(&options, &env, &targets, genesis_round_counter)?;
+            println!("error_vec in genesis.rs{:?}", &error_vec);
             let time = Utc::now();
-            let mut mutation_id = 0;
+            let current_mutation_type: String = env_diags_map
+                .get(&(vec_loc[0].unwrap()))
+                .unwrap()
+                .to_owned()
+                .to_owned();
+
             let mut evolution_info = EvolutionInfo {
                 function_id: current_function_name,
                 module_id: current_module_name,
@@ -68,13 +81,18 @@ pub fn run_mutation_genesis(
                 appendix: current_appendix,
                 fin_sig: false,
                 timestamp: time.to_rfc3339(),
+                mutation_type: vec![current_mutation_type],
             };
-            println!("env{:?}",&env);
-            mutation_id = mutation_id + 1;
-            let genesis_round_counter: usize = 0;
-            // read the serde vec and then rewrite it when it's not empty (this should be a vector)
-            let mut original_evolution_info: Vec<EvolutionInfo> = write_create_if_not_exists(&evolution_info_file_path)?;
 
+            mutation_id = mutation_id + 1;
+
+            // read the serde vec and then rewrite it when it's not empty (this should be a vector)
+            let mut original_evolution_info: Vec<EvolutionInfo> =
+                if Path::new(&evolution_info_file_path).exists() {
+                    read_only_return_json_file(&evolution_info_file_path).unwrap()
+                } else {
+                    Vec::new()
+                };
 
             if error_vec.is_empty() {
                 evolution_info.fin_sig = true;
@@ -84,21 +102,17 @@ pub fn run_mutation_genesis(
                 evolution_info.error = error_vec.clone();
                 original_evolution_info.push(evolution_info.clone());
             }
-
-            // update the info into the evolution info file
-            let serde_evolution_info = serde_json::to_value(original_evolution_info).unwrap();
-
-            // delete the evolution info file first before renewing it
-
-            fs::remove_file(&evolution_info_file_path)?;
-            let mut evolution_info_file = OpenOptions::new()
+            fs::remove_file(&evolution_info_file_path);
+            let evolution_info_file = OpenOptions::new()
                 .read(true)
                 .write(true)
                 .create(true)
                 .open(&evolution_info_file_path)
                 .unwrap();
+            let serde_evolution_info = serde_json::to_value(original_evolution_info).unwrap();
             serde_json::to_writer_pretty(&evolution_info_file, &serde_evolution_info)?;
         }
+
         pb.inc();
     }
 
