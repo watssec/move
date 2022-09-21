@@ -2,5 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod cli;
-pub mod prover;
 pub mod mutation;
+pub mod mutation_steps;
+pub mod prover;

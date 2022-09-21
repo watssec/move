@@ -7,6 +7,7 @@ use crate::package::cli;
 use anyhow::bail;
 use codespan_reporting::term::termcolor::{ColorChoice, StandardStream};
 use colored::Colorize;
+use move_compiler::Flags;
 use move_package::{BuildConfig, ModelConfig};
 use move_prover::run_move_prover_with_model;
 use std::{
@@ -15,7 +16,6 @@ use std::{
     time::Instant,
 };
 use tempfile::TempDir;
-use move_compiler::Flags;
 // =================================================================================================
 // API for Rust unit tests
 
@@ -118,7 +118,9 @@ pub fn run_move_prover(
         args.push(format!("--config={}", prover_toml.to_string_lossy()));
     }
     args.extend(options.iter().cloned());
+    println!("args{:?}", &args);
     let mut options = move_prover::cli::Options::create_from_args(&args)?;
+    println!("options{:?}", &options);
     if !options.move_sources.is_empty() {
         bail!(
             "move prover options must not specify sources as those are given \

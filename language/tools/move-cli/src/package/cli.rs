@@ -35,7 +35,9 @@ use move_package::{
 use move_unit_test::UnitTestingConfig;
 use structopt::StructOpt;
 
-use crate::{package::prover::run_move_prover, package::mutation::run_move_mutation, NativeFunctionRecord};
+use crate::{
+    package::mutation::run_move_mutation, package::prover::run_move_prover, NativeFunctionRecord,
+};
 use move_compiler::Flags;
 #[derive(StructOpt)]
 pub enum CoverageSummaryOptions {
@@ -193,9 +195,20 @@ pub enum ProverOptions {
 }
 
 #[derive(StructOpt, Debug)]
-pub enum MutationOptions{
-
-    // Pass through unknown commands to the prover Clap parser'
+pub enum MutationOptions {
+    #[structopt(name = "init")]
+    Init,
+    #[structopt(name = "rep")]
+    Rep,
+    #[structopt(name = "comb")]
+    Combination,
+    #[structopt(name = "mix")]
+    Mix,
+    #[structopt(name = "evolution")]
+    Evolution,
+    #[structopt(name = "genesis")]
+    Genesis,
+    // Pass through unknown commands to the prover Clap parser
     #[structopt(external_subcommand)]
     Options(Vec<String>),
 }
@@ -363,17 +376,11 @@ pub fn handle_package_commands(
                 run_move_prover(config, &rerooted_path, target_filter, *for_test, &[])?
             }
         }
-        PackageCommand::Mutation{
+        PackageCommand::Mutation {
             target_filter,
             for_test,
             options,
-        } => {
-            if let Some(MutationOptions::Options(opts)) = options {
-                run_move_mutation(config, &rerooted_path, target_filter, *for_test, opts)?
-            }else{
-                run_move_mutation(config, &rerooted_path, target_filter, *for_test, &[])?
-            }
-        }
+        } => run_move_mutation(config, &rerooted_path, target_filter, *for_test, options)?,
         PackageCommand::ErrMapGen {
             error_prefix,
             output_file,

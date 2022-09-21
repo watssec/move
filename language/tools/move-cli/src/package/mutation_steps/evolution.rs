@@ -11,7 +11,7 @@ use std::convert::TryInto;
 use std::fs::{self, OpenOptions};
 use std::path::Path;
 
-//TODO: add check_fin to the proving part
+//TODO: make this part able to resume
 pub fn run_evolution_testing(
     path: &Path,
     mut config: BuildConfig,
@@ -24,6 +24,7 @@ pub fn run_evolution_testing(
 
         let mut mutate_loc_original: Vec<Loc> =
             read_only_return_json_file(&mutate_loc_original_file_path)?;
+
         let mut env_diags_map_keys: Vec<Loc> = read_only_return_json_file(&env_diags_map_keys_file_path)?;
         let mut cnt = 0;
         for loc in env_diags_map_keys {
@@ -34,10 +35,10 @@ pub fn run_evolution_testing(
         // Read in the evolution_status info
         let mut evolution_status: BTreeMap<String, Vec<Vec<Option<Loc>>>> =
             read_only_return_json_file(&evolution_status_file_path)?;
+        let mut evolution_bar_length = evolution_status.len();
+        let mut pb = ProgressBar::new(evolution_bar_length.try_into().unwrap());
+        pb.format("╢▌▌░╟");
         for (function, mutation_vec) in evolution_status.clone() {
-            let mut evolution_bar_length = mutation_vec.len();
-            let mut pb = ProgressBar::new(evolution_bar_length.try_into().unwrap());
-            pb.format("╢▌▌░╟");
             for vec in mutation_vec {
                 if vec.len() != i + 2 {
                     continue;
@@ -45,7 +46,6 @@ pub fn run_evolution_testing(
 
                 mutation_id = mutation_id + 1;
                 let mut init_flag = false;
-                println!("before prepare");
                 let (mut env, targets) = prepare(
                     config.clone(),
                     path,
@@ -90,7 +90,7 @@ pub fn run_evolution_testing(
 
                 let mut original_evolution_info: Vec<EvolutionInfo> =
                     read_only_return_json_file(&evolution_info_file_path)?;
-                println!("before prove!");
+
                 let error_vec = prove(&sub_options, &env, &targets, i + 1)?;
                 if error_vec.is_empty() {
                     evolution_info.fin_sig = true;
@@ -127,16 +127,8 @@ pub fn run_evolution_testing(
                 };
 
                 fs::remove_file(&evolution_info_file_path);
-                let evolution_info_file = OpenOptions::new()
-                    .read(true)
-                    .write(true)
-                    .create(true)
-                    .open(&evolution_info_file_path)
-                    .unwrap();
-                let serde_evolution_info = serde_json::to_value(original_evolution_info).unwrap();
-                serde_json::to_writer_pretty(&evolution_info_file, &serde_evolution_info)?;
+                write_pretty_json(&evolution_info_file_path, original_evolution_info);
 
-                println!("vec{:?}", &vec);
                 pb.inc();
             }
         }

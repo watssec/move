@@ -38,7 +38,7 @@ pub fn rep_set_generation(round_id: usize) -> BTreeMap<String, Vec<Vec<Option<Lo
         env_diags_map.insert(loc.clone(), diags_vec[cnt].clone());
         cnt = cnt + 1;
     }
-    println!("evolution_status{:?}", &evolution_status);
+
     let two_step_type = vec![
         "ArithmeticOperator".to_string(),
         "Constant".to_string(),
