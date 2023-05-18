@@ -47,7 +47,6 @@ pub fn run_mutation_init(
 
     init_flag = false;
     let mut cnt = 0;
-
     let env_diags_map = env.diags_map;
     let env_function_map = env.function_map;
     let mut mutate_loc_original: Vec<Option<Loc>> = Vec::new();
