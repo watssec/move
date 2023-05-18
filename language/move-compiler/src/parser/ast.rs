@@ -6,10 +6,11 @@ use move_command_line_common::files::FileHash;
 use move_ir_types::location::*;
 use move_symbol_pool::Symbol;
 use std::{fmt, hash::Hash};
+use serde::{Deserialize, Serialize};
 
 macro_rules! new_name {
     ($n:ident) => {
-        #[derive(Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Clone, Copy)]
+        #[derive(Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Clone, Copy, Serialize, Deserialize)]
         pub struct $n(pub Name);
 
         impl TName for $n {
