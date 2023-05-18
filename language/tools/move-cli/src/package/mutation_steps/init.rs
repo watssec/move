@@ -64,7 +64,6 @@ pub fn run_mutation_init(
         }
     }
     write_pretty_json(&mutate_loc_original_file_path, mutate_loc_original.clone());
-
     let mut bar_length = mutate_loc_original.clone().len();
     let mut pb = ProgressBar::new(bar_length.try_into().unwrap());
     pb.format("╢▌▌░╟");
@@ -79,7 +78,6 @@ pub fn run_mutation_init(
         let mut loc = wrapped_loc.unwrap();
         let vec_loc = vec![Some(loc)];
         if mutated_vec.contains(&vec_loc) {
-            println!("cont'd");
             continue;
         }
         let (mut env, targets) = prepare(
